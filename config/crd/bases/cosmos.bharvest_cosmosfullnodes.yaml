@@ -6231,8 +6231,6 @@ spec:
                         - LoadBalancer
                         - ExternalName
                         type: string
-                    required:
-                    - ports
                     type: object
                   rpcTemplate:
                     description: Overrides for the single RPC service.
@@ -6342,8 +6340,6 @@ spec:
                         - LoadBalancer
                         - ExternalName
                         type: string
-                    required:
-                    - ports
                     type: object
                 type: object
               strategy:
