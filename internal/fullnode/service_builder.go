@@ -2,7 +2,6 @@ package fullnode
 
 import (
 	"fmt"
-
 	cosmosv1 "github.com/bharvest-devops/cosmos-operator/api/v1"
 	"github.com/bharvest-devops/cosmos-operator/internal/diff"
 	"github.com/bharvest-devops/cosmos-operator/internal/kube"
@@ -45,15 +44,6 @@ func BuildServices(crd *cosmosv1.CosmosFullNode) []diff.Resource[*corev1.Service
 			kube.ComponentLabel, "p2p",
 		)
 		svc.Annotations = map[string]string{}
-
-		svc.Spec.Ports = []corev1.ServicePort{
-			{
-				Name:       "p2p",
-				Protocol:   corev1.ProtocolTCP,
-				Port:       p2pPort,
-				TargetPort: intstr.FromString("p2p"),
-			},
-		}
 		svc.Spec.Selector = map[string]string{kube.InstanceLabel: instanceName(crd, ordinal)}
 
 		if i < maxExternal {
@@ -64,6 +54,31 @@ func BuildServices(crd *cosmosv1.CosmosFullNode) []diff.Resource[*corev1.Service
 		} else {
 			svc.Spec.Type = corev1.ServiceTypeClusterIP
 		}
+
+		var (
+			portNameP2P = "p2p"
+		)
+
+		servicePortList := []corev1.ServicePort{
+			{
+				Name:       portNameP2P,
+				Protocol:   corev1.ProtocolTCP,
+				Port:       p2pPort,
+				TargetPort: intstr.FromString(portNameP2P),
+			},
+		}
+
+		for dp := 0; dp < len(servicePortList); dp++ {
+			n := servicePortList[dp].Name
+			for _, p := range crd.Spec.Service.P2PTemplate.Ports {
+				if p.Name == fmt.Sprintf("%s.%s", p2pServiceName(crd, ordinal), portNameP2P) {
+					servicePortList[dp] = p
+					servicePortList[dp].Name = n
+				}
+			}
+		}
+
+		svc.Spec.Ports = servicePortList
 
 		p2ps[i] = diff.Adapt(&svc, i)
 	}
@@ -84,39 +99,6 @@ func rpcService(crd *cosmosv1.CosmosFullNode) *corev1.Service {
 	)
 	svc.Annotations = map[string]string{}
 
-	svc.Spec.Ports = []corev1.ServicePort{
-		{
-			Name:       "api",
-			Protocol:   corev1.ProtocolTCP,
-			Port:       apiPort,
-			TargetPort: intstr.FromString("api"),
-		},
-		{
-			Name:       "rosetta",
-			Protocol:   corev1.ProtocolTCP,
-			Port:       rosettaPort,
-			TargetPort: intstr.FromString("rosetta"),
-		},
-		{
-			Name:       "grpc",
-			Protocol:   corev1.ProtocolTCP,
-			Port:       grpcPort,
-			TargetPort: intstr.FromString("grpc"),
-		},
-		{
-			Name:       "rpc",
-			Protocol:   corev1.ProtocolTCP,
-			Port:       rpcPort,
-			TargetPort: intstr.FromString("rpc"),
-		},
-		{
-			Name:       "grpc-web",
-			Protocol:   corev1.ProtocolTCP,
-			Port:       grpcWebPort,
-			TargetPort: intstr.FromString("grpc-web"),
-		},
-	}
-
 	svc.Spec.Selector = map[string]string{kube.NameLabel: appName(crd)}
 	svc.Spec.Type = corev1.ServiceTypeClusterIP
 
@@ -125,12 +107,65 @@ func rpcService(crd *cosmosv1.CosmosFullNode) *corev1.Service {
 	preserveMergeInto(svc.Annotations, rpcSpec.Metadata.Annotations)
 	kube.NormalizeMetadata(&svc.ObjectMeta)
 
+	var (
+		portNameAPI     = "api"
+		portNameRosetta = "rosetta"
+		portNameGrpc    = "grpc"
+		portNameRPC     = "rpc"
+		portNameGrpcWeb = "grpc-web"
+	)
+
+	servicePortList := []corev1.ServicePort{
+		{
+			Name:       portNameAPI,
+			Protocol:   corev1.ProtocolTCP,
+			Port:       apiPort,
+			TargetPort: intstr.FromString(portNameAPI),
+		},
+		{
+			Name:       portNameRosetta,
+			Protocol:   corev1.ProtocolTCP,
+			Port:       rosettaPort,
+			TargetPort: intstr.FromString(portNameRosetta),
+		},
+		{
+			Name:       portNameGrpc,
+			Protocol:   corev1.ProtocolTCP,
+			Port:       grpcPort,
+			TargetPort: intstr.FromString(portNameGrpc),
+		},
+		{
+			Name:       portNameRPC,
+			Protocol:   corev1.ProtocolTCP,
+			Port:       rpcPort,
+			TargetPort: intstr.FromString(portNameRPC),
+		},
+		{
+			Name:       portNameGrpcWeb,
+			Protocol:   corev1.ProtocolTCP,
+			Port:       grpcWebPort,
+			TargetPort: intstr.FromString(portNameGrpcWeb),
+		},
+	}
+
+	for i := 0; i < len(servicePortList); i++ {
+		n := servicePortList[i].Name
+		for _, p := range crd.Spec.Service.RPCTemplate.Ports {
+			if p.Name == fmt.Sprintf("%s.%s", rpcServiceName(crd), n) {
+				servicePortList[i] = p
+				servicePortList[i].Name = n
+			}
+		}
+	}
+
 	if v := rpcSpec.ExternalTrafficPolicy; v != nil {
 		svc.Spec.ExternalTrafficPolicy = *v
 	}
 	if v := rpcSpec.Type; v != nil {
 		svc.Spec.Type = *v
 	}
+
+	svc.Spec.Ports = servicePortList
 
 	return &svc
 }
