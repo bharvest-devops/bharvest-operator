@@ -43,6 +43,9 @@ func TestBuildConfigMaps(t *testing.T) {
 		crd.Spec.PodTemplate.Image = "agoric:v6.0.0"
 		crd.Spec.ChainSpec.Network = "testnet"
 
+		tomlOverrides := `moniker = "agoric"`
+		crd.Spec.ChainSpec.Comet.TomlOverrides = &tomlOverrides
+
 		cms, err := BuildConfigMaps(&crd, nil)
 		require.NoError(t, err)
 		require.Equal(t, 3, len(cms))
@@ -102,19 +105,36 @@ func TestBuildConfigMaps(t *testing.T) {
 		crd.Name = "osmosis"
 		crd.Spec.ChainSpec.Network = "mainnet"
 		crd.Spec.Replicas = 1
-		crd.Spec.ChainSpec.Comet = cosmosv1.CometConfig{
-			PersistentPeers: "peer1@1.2.2.2:789,peer2@2.2.2.2:789,peer3@3.2.2.2:789",
-			Seeds:           "seed1@1.1.1.1:456,seed2@1.1.1.1:456",
+
+		persistentPeers := "peer1@1.2.2.2:789,peer2@2.2.2.2:789,peer3@3.2.2.2:789"
+		seeds := "seed1@1.1.1.1:456,seed2@1.1.1.1:456"
+
+		cosmosP2P := cosmosv1.P2P{
+			PersistentPeers: &persistentPeers,
+			Seeds:           &seeds,
 		}
+		cometConfig := cosmosv1.CometConfig{
+			P2P: &cosmosP2P,
+		}
+		crd.Spec.ChainSpec.Comet = &cometConfig
+
+		cosmosAppConfig := cosmosv1.SDKAppConfig{}
+		crd.Spec.ChainSpec.CosmosSDK = &cosmosAppConfig
 
 		t.Run("happy path", func(t *testing.T) {
 			custom := crd.DeepCopy()
 			custom.Spec.Replicas = 1
 			custom.Spec.ChainSpec.LogLevel = ptr("debug")
 			custom.Spec.ChainSpec.LogFormat = ptr("json")
-			custom.Spec.ChainSpec.Comet.CorsAllowedOrigins = []string{"*"}
-			custom.Spec.ChainSpec.Comet.MaxInboundPeers = ptr(int32(5))
-			custom.Spec.ChainSpec.Comet.MaxOutboundPeers = ptr(int32(15))
+			corsAllowedOrigins := []string{"*"}
+
+			RPC := cosmosv1.RPC{
+				CorsAllowedOrigins: &corsAllowedOrigins,
+			}
+			custom.Spec.ChainSpec.Comet.RPC = &RPC
+
+			crd.Spec.ChainSpec.Comet.P2P.MaxNumInboundPeers = ptr(int32(5))
+			crd.Spec.ChainSpec.Comet.P2P.MaxNumOutboundPeers = ptr(int32(15))
 
 			peers := Peers{
 				client.ObjectKey{Namespace: namespace, Name: "osmosis-0"}: {NodeID: "should not see me", PrivateAddress: "should not see me"},
@@ -162,8 +182,11 @@ func TestBuildConfigMaps(t *testing.T) {
 		t.Run("with peers", func(t *testing.T) {
 			peerCRD := crd.DeepCopy()
 			peerCRD.Spec.Replicas = 3
-			peerCRD.Spec.ChainSpec.Comet.UnconditionalPeerIDs = "unconditional1,unconditional2"
-			peerCRD.Spec.ChainSpec.Comet.PrivatePeerIDs = "private1,private2"
+
+			privatePeerIds := "private1,private2"
+			unconditoinalPeerIDs := "unconditional1,unconditional2"
+			peerCRD.Spec.ChainSpec.Comet.P2P.UnconditionalPeerIDs = &unconditoinalPeerIDs
+			peerCRD.Spec.ChainSpec.Comet.P2P.PrivatePeerIds = &privatePeerIds
 			peers := Peers{
 				client.ObjectKey{Namespace: namespace, Name: "osmosis-0"}: {NodeID: "0", PrivateAddress: "0.local:26656"},
 				client.ObjectKey{Namespace: namespace, Name: "osmosis-1"}: {NodeID: "1", PrivateAddress: "1.local:26656"},
@@ -214,7 +237,12 @@ func TestBuildConfigMaps(t *testing.T) {
 		t.Run("overrides", func(t *testing.T) {
 			overrides := crd.DeepCopy()
 			overrides.Namespace = namespace
-			overrides.Spec.ChainSpec.Comet.CorsAllowedOrigins = []string{"should not see me"}
+
+			RPC := cosmosv1.RPC{
+				CorsAllowedOrigins: ptr([]string{"should not see me"}),
+			}
+			overrides.Spec.ChainSpec.Comet.RPC = &RPC
+
 			overrides.Spec.ChainSpec.Comet.TomlOverrides = ptr(`
 	log_format = "json"
 	new_base = "new base value"
@@ -279,18 +307,27 @@ func TestBuildConfigMaps(t *testing.T) {
 
 			require.Equal(t, 3, len(cms))
 
-			var decoded decodedToml
+			var decoded cosmosv1.CometConfig
 			_, err = toml.Decode(cms[0].Object().Data["config-overlay.toml"], &decoded)
 			require.NoError(t, err)
-			require.Equal(t, "1.1.1.1:26657", decoded["p2p"].(decodedToml)["external_address"])
+			require.Equal(t, "1.1.1.1:26657", *decoded.P2P.ExternalAddress)
+			decoded = cosmosv1.CometConfig{}
 
 			_, err = toml.Decode(cms[1].Object().Data["config-overlay.toml"], &decoded)
 			require.NoError(t, err)
-			require.Equal(t, "2.2.2.2:26657", decoded["p2p"].(decodedToml)["external_address"])
+			require.Equal(t, "2.2.2.2:26657", *decoded.P2P.ExternalAddress)
+
+			empty := ""
+			tmpP2P := cosmosv1.P2P{
+				ExternalAddress: &empty,
+			}
+			decoded = cosmosv1.CometConfig{
+				P2P: &tmpP2P,
+			}
 
 			_, err = toml.Decode(cms[2].Object().Data["config-overlay.toml"], &decoded)
 			require.NoError(t, err)
-			require.Empty(t, decoded["p2p"].(decodedToml)["external_address"])
+			require.Empty(t, *decoded.P2P.ExternalAddress)
 		})
 
 		t.Run("invalid toml", func(t *testing.T) {
@@ -299,23 +336,24 @@ func TestBuildConfigMaps(t *testing.T) {
 			_, err := BuildConfigMaps(malformed, nil)
 
 			require.Error(t, err)
-			require.Contains(t, err.Error(), "invalid toml in comet overrides")
+			require.Contains(t, err.Error(), "toml task failed")
 		})
 	})
 
 	t.Run("app-overlay.toml", func(t *testing.T) {
 		crd := defaultCRD()
 		crd.Spec.Replicas = 3
-		crd.Spec.ChainSpec.App = cosmosv1.SDKAppConfig{
+		appConfig := cosmosv1.SDKAppConfig{
 			MinGasPrice: "0.123token",
 		}
+		crd.Spec.ChainSpec.CosmosSDK = &appConfig
 
 		t.Run("happy path", func(t *testing.T) {
 			custom := crd.DeepCopy()
-			custom.Spec.ChainSpec.App.APIEnableUnsafeCORS = true
-			custom.Spec.ChainSpec.App.GRPCWebEnableUnsafeCORS = true
-			custom.Spec.ChainSpec.App.HaltHeight = ptr(uint64(34567))
-			custom.Spec.ChainSpec.App.Pruning = &cosmosv1.Pruning{
+			custom.Spec.ChainSpec.CosmosSDK.APIEnableUnsafeCORS = true
+			custom.Spec.ChainSpec.CosmosSDK.GRPCWebEnableUnsafeCORS = true
+			custom.Spec.ChainSpec.CosmosSDK.HaltHeight = ptr(uint64(34567))
+			custom.Spec.ChainSpec.CosmosSDK.Pruning = &cosmosv1.Pruning{
 				Strategy:        "custom",
 				Interval:        ptr(uint32(222)),
 				KeepEvery:       ptr(uint32(333)),
@@ -365,8 +403,8 @@ func TestBuildConfigMaps(t *testing.T) {
 
 		t.Run("overrides", func(t *testing.T) {
 			overrides := crd.DeepCopy()
-			overrides.Spec.ChainSpec.App.MinGasPrice = "should not see me"
-			overrides.Spec.ChainSpec.App.TomlOverrides = ptr(`
+			overrides.Spec.ChainSpec.CosmosSDK.MinGasPrice = "should not see me"
+			overrides.Spec.ChainSpec.CosmosSDK.TomlOverrides = ptr(`
 	minimum-gas-prices = "0.1override"
 	new-base = "new base value"
 	
@@ -412,25 +450,28 @@ func TestBuildConfigMaps(t *testing.T) {
 			_, err = toml.Decode(cms[0].Object().Data["config-overlay.toml"], &config)
 			require.NoError(t, err)
 			require.Equal(t, overrideAddr0, config["p2p"].(map[string]any)["external_address"])
-			require.Equal(t, overrideAddr0, config["p2p"].(map[string]any)["external-address"])
 
 			_, err = toml.Decode(cms[1].Object().Data["config-overlay.toml"], &config)
 			require.NoError(t, err)
 			require.Equal(t, overrideAddr1, config["p2p"].(map[string]any)["external_address"])
-			require.Equal(t, overrideAddr1, config["p2p"].(map[string]any)["external-address"])
 		})
 
 		t.Run("invalid toml", func(t *testing.T) {
 			malformed := crd.DeepCopy()
-			malformed.Spec.ChainSpec.App.TomlOverrides = ptr(`invalid_toml = should be invalid`)
+			malformed.Spec.ChainSpec.CosmosSDK.TomlOverrides = ptr(`invalid_toml = should be invalid`)
 			_, err := BuildConfigMaps(malformed, nil)
 
 			require.Error(t, err)
-			require.Contains(t, err.Error(), "invalid toml in app overrides")
+			require.Contains(t, err.Error(), "toml task failed")
 		})
 	})
 
 	test.HasTypeLabel(t, func(crd cosmosv1.CosmosFullNode) []map[string]string {
+		cometConfig := cosmosv1.CometConfig{}
+		crd.Spec.ChainSpec.Comet = &cometConfig
+		cosmosAppConfig := cosmosv1.SDKAppConfig{}
+		crd.Spec.ChainSpec.CosmosSDK = &cosmosAppConfig
+
 		cms, _ := BuildConfigMaps(&crd, nil)
 		labels := make([]map[string]string, 0)
 		for _, cm := range cms {

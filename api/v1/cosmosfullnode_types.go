@@ -18,6 +18,7 @@ limitations under the License.
 package v1
 
 import (
+	blockchain_toml "github.com/bharvest-devops/blockchain-toml"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/intstr"
@@ -193,6 +194,9 @@ type PodSpec struct {
 	// +optional
 	Metadata Metadata `json:"metadata"`
 
+	// +optional
+	Envs []map[string]string `json:"envs"`
+
 	// Image is the docker reference in "repository:tag" format. E.g. busybox:latest.
 	// This is for the main container running the chain process.
 	// Note: for granular control over which images are applied at certain block heights,
@@ -200,9 +204,6 @@ type PodSpec struct {
 	// +kubebuilder:validation:MinLength:=1
 	// +optional
 	Image string `json:"image"`
-
-	// +optional
-	UseCosmovisor bool `json:"useCosmovisor"`
 
 	// Image pull policy.
 	// One of Always, Never, IfNotPresent.
@@ -416,6 +417,11 @@ type ChainSpec struct {
 	// +kubebuilder:validation:MinLength:=1
 	ChainID string `json:"chainID"`
 
+	// Describes chain type to operate
+	// If not set, defaults to "cosmos".
+	// +kubebuilder:validation:Enum:=cosmos;cosmovisor;namada
+	ChainType string `json:"chainType"`
+
 	// The network environment. Typically, mainnet, testnet, devnet, etc.
 	// +kubebuilder:validation:MinLength:=1
 	Network string `json:"network"`
@@ -437,10 +443,15 @@ type ChainSpec struct {
 	// CometBFT (formerly Tendermint) configuration applied to config.toml.
 	// Although optional, it's highly recommended you configure this field.
 	// +optional
-	Comet CometConfig `json:"config"`
+	Comet *CometConfig `json:"config"`
 
-	// App configuration applied to app.toml.
-	App SDKAppConfig `json:"app"`
+	// CosmosSDK configuration applied to app.toml.
+	// +optional
+	CosmosSDK *SDKAppConfig `json:"cosmos"`
+
+	// Namada configuration applied to $CHAIN_ID/config.toml.
+	// +optional
+	Namada *NamadaConfig `json:"namada"`
 
 	// One of trace|debug|info|warn|error|fatal|panic.
 	// If not set, defaults to info.
@@ -498,32 +509,6 @@ type ChainSpec struct {
 	// +optional
 	GenesisScript *string `json:"genesisScript"`
 
-	// Skip x/crisis invariants check on startup.
-	// +optional
-	SkipInvariants bool `json:"skipInvariants"`
-
-	// URL for a snapshot archive to download from the internet.
-	// Unarchiving the snapshot populates the data directory.
-	// Although this field is optional, you will almost always want to set it.
-	// The operator detects and properly handles the following file extensions:
-	// .tar, .tar.gz, .tar.gzip, .tar.lz4
-	// Use SnapshotScript if the snapshot archive is unconventional or requires special handling.
-	// +optional
-	SnapshotURL *string `json:"snapshotURL"`
-
-	// Specify shell (sh) script commands to properly download and process a snapshot archive.
-	// Prefer SnapshotURL if possible.
-	// The available shell commands are from docker image ghcr.io/strangelove-ventures/infra-toolkit, including wget and curl.
-	// Save the file to env var $GENESIS_FILE.
-	// Takes precedence over SnapshotURL.
-	// Hint: Use "set -eux" in your script.
-	// Available env vars:
-	// $HOME: The user's home directory.
-	// $CHAIN_HOME: The home directory for the chain, aka: --home flag
-	// $DATA_DIR: The directory for the database files.
-	// +optional
-	SnapshotScript *string `json:"snapshotScript"`
-
 	// If configured as a Sentry, invokes sleep command with this value before running chain start command.
 	// Currently, requires the privval laddr to be available immediately without any retry.
 	// This workaround gives time for the connection to be made to a remote signer.
@@ -570,54 +555,194 @@ type ChainVersion struct {
 
 // CometConfig configures the config.toml.
 type CometConfig struct {
-	// Comma delimited list of p2p nodes in <ID>@<IP>:<PORT> format to keep persistent p2p connections.
-	// +kubebuilder:validation:MinLength:=1
-	// +optional
-	PersistentPeers string `json:"peers"`
 
-	// Comma delimited list of p2p seed nodes in <ID>@<IP>:<PORT> format.
-	// +kubebuilder:validation:MinLength:=1
+	// RPC configuration for your config.toml
 	// +optional
-	Seeds string `json:"seeds"`
+	RPC *RPC `json:"rpc" toml:"rpc"`
 
-	// Comma delimited list of node/peer IDs to keep private (will not be gossiped to other peers)
+	// P2P configuration for your config.toml
 	// +optional
-	PrivatePeerIDs string `json:"privatePeerIDs"`
+	P2P *P2P `json:"p2p" toml:"p2p"`
 
-	// Comma delimited list of node/peer IDs, to which a connection will be (re)established ignoring any existing limits.
+	// Consensus configuration for your config.toml
 	// +optional
-	UnconditionalPeerIDs string `json:"unconditionalPeerIDs"`
+	Consensus *Consensus `json:"consensus" toml:"consensus"`
 
-	// p2p maximum number of inbound peers.
-	// If unset, defaults to 20.
-	// +kubebuilder:validation:Minimum:=0
+	// Storage configuration for your config.toml
 	// +optional
-	MaxInboundPeers *int32 `json:"maxInboundPeers"`
+	Storage *Storage `json:"storage" toml:"storage"`
 
-	// p2p maximum number of outbound peers.
-	// If unset, defaults to 20.
-	// +kubebuilder:validation:Minimum:=0
+	// TxIndex configuration for your config.toml
 	// +optional
-	MaxOutboundPeers *int32 `json:"maxOutboundPeers"`
+	TxIndex *TxIndex `json:"txIndex" toml:"tx_index"`
 
-	// rpc list of origins a cross-domain request can be executed from.
-	// Default value '[]' disables cors support.
-	// Use '["*"]' to allow any origin.
+	// Instrumentation configuration for your config.toml
 	// +optional
-	CorsAllowedOrigins []string `json:"corsAllowedOrigins"`
+	Instrumentation *Instrumentation `json:"instrumentation" toml:"instrumentation"`
 
-	// Customize config.toml.
-	// Values entered here take precedence over all other configuration.
-	// Must be valid toml.
-	// Important: all keys must be "snake_case" which differs from app.toml.
-	// WARNING: Overriding may clobber some values that the operator sets such as persistent_peers, private_peer_ids,
-	// and unconditional_peer_ids. Use the dedicated fields for these values which will merge values.
+	// Statesync configuration for your config.toml
 	// +optional
-	TomlOverrides *string `json:"overrides"`
+	Statesync *Statesync `json:"statesync" toml:"statesync"`
+
+	// +optional
+	TomlOverrides *string `json:"tomlOverrides"`
+}
+
+func (c *CometConfig) ToCosmosConfig() blockchain_toml.CosmosConfigFile {
+	config := blockchain_toml.CosmosConfigFile{}
+	if c.RPC != nil {
+		config.RPC = blockchain_toml.CosmosRPC{
+			Laddr:                    c.RPC.Laddr,
+			CorsAllowedOrigins:       c.RPC.CorsAllowedOrigins,
+			CorsAllowedMethods:       c.RPC.CorsAllowedMethods,
+			TimeoutBroadcastTxCommit: c.RPC.TimeoutBroadcastTxCommit,
+		}
+	}
+	if c.P2P != nil {
+		config.P2P = blockchain_toml.CosmosP2P{
+			Laddr:                c.P2P.Laddr,
+			ExternalAddress:      c.P2P.ExternalAddress,
+			Seeds:                c.P2P.Seeds,
+			PersistentPeers:      c.P2P.PersistentPeers,
+			MaxNumInboundPeers:   c.P2P.MaxNumInboundPeers,
+			MaxNumOutboundPeers:  c.P2P.MaxNumOutboundPeers,
+			Pex:                  c.P2P.Pex,
+			SeedMode:             c.P2P.SeedMode,
+			PrivatePeerIds:       c.P2P.PrivatePeerIds,
+			UnconditionalPeerIds: c.P2P.UnconditionalPeerIDs,
+		}
+	}
+	if c.Consensus != nil {
+		config.Consensus = blockchain_toml.CosmosConsensus{
+			DoubleSignCheckHeight:     c.Consensus.DoubleSignCheckHeight,
+			SkipTimeoutCommit:         c.Consensus.SkipTimeoutCommit,
+			CreateEmptyBlocks:         c.Consensus.CreateEmptyBlocks,
+			CreateEmptyBlocksInterval: c.Consensus.CreateEmptyBlocksInterval,
+			PeerGossipSleepDuration:   c.Consensus.PeerGossipSleepDuration,
+		}
+	}
+	if c.Storage != nil {
+		config.Storage = blockchain_toml.CosmosStorage{
+			DiscardAbciResponses: c.Storage.DiscardAbciResponses,
+		}
+	}
+	if c.TxIndex != nil {
+		config.TxIndex = blockchain_toml.CosmosTxIndex{
+			Indexer: c.TxIndex.Indexer,
+		}
+	}
+	if c.Instrumentation != nil {
+		config.Instrumentation = blockchain_toml.CosmosInstrumentation{
+			Prometheus:           c.Instrumentation.Prometheus,
+			PrometheusListenAddr: c.Instrumentation.PrometheusListenAddr,
+		}
+	}
+	if c.Statesync != nil {
+		config.Statesync = blockchain_toml.CosmosStatesync{
+			Enable:        c.Statesync.Enable,
+			RPCServers:    c.Statesync.RPCServers,
+			TrustHeight:   c.Statesync.TrustHeight,
+			TrustHash:     c.Statesync.TrustHash,
+			TrustPeriod:   c.Statesync.TrustPeriod,
+			DiscoveryTime: c.Statesync.DiscoveryTime,
+			TempDir:       c.Statesync.TempDir,
+		}
+	}
+	return config
+}
+
+func (c *CometConfig) ToNamadaComet() blockchain_toml.NamadaCometbft {
+	cometbft := blockchain_toml.NamadaCometbft{}
+	if c.RPC != nil {
+		cometbft.RPC = blockchain_toml.NamadaRPC{
+			Laddr:                    c.RPC.Laddr,
+			CorsAllowedOrigins:       c.RPC.CorsAllowedOrigins,
+			CorsAllowedMethods:       c.RPC.CorsAllowedMethods,
+			TimeoutBroadcastTxCommit: c.RPC.TimeoutBroadcastTxCommit,
+		}
+	}
+	if c.P2P != nil {
+		cometbft.P2P = blockchain_toml.NamadaP2P{
+			Laddr:                c.P2P.Laddr,
+			ExternalAddress:      c.P2P.ExternalAddress,
+			Seeds:                c.P2P.Seeds,
+			PersistentPeers:      c.P2P.PersistentPeers,
+			MaxNumInboundPeers:   c.P2P.MaxNumInboundPeers,
+			MaxNumOutboundPeers:  c.P2P.MaxNumOutboundPeers,
+			Pex:                  c.P2P.Pex,
+			SeedMode:             c.P2P.SeedMode,
+			PrivatePeerIds:       c.P2P.PrivatePeerIds,
+			UnconditionalPeerIds: c.P2P.UnconditionalPeerIDs,
+		}
+	}
+	if c.Consensus != nil {
+		cometbft.Consensus = blockchain_toml.NamadaConsensus{
+			DoubleSignCheckHeight:     c.Consensus.DoubleSignCheckHeight,
+			SkipTimeoutCommit:         c.Consensus.SkipTimeoutCommit,
+			CreateEmptyBlocks:         c.Consensus.CreateEmptyBlocks,
+			CreateEmptyBlocksInterval: c.Consensus.CreateEmptyBlocksInterval,
+			PeerGossipSleepDuration:   c.Consensus.PeerGossipSleepDuration,
+		}
+	}
+	if c.Storage != nil {
+		cometbft.Storage = blockchain_toml.NamadaStorage{
+			DiscardAbciResponses: c.Storage.DiscardAbciResponses,
+		}
+	}
+	if c.TxIndex != nil {
+		cometbft.TxIndex = blockchain_toml.NamadaTxIndex{
+			Indexer: c.TxIndex.Indexer,
+		}
+	}
+	if c.Instrumentation != nil {
+		cometbft.Instrumentation = blockchain_toml.NamadaInstrumentation{
+			Prometheus:           c.Instrumentation.Prometheus,
+			PrometheusListenAddr: c.Instrumentation.PrometheusListenAddr,
+		}
+	}
+	if c.Statesync != nil {
+		cometbft.Statesync = blockchain_toml.NamadaStatesync{
+			Enable:        c.Statesync.Enable,
+			RPCServers:    c.Statesync.RPCServers,
+			TrustHeight:   c.Statesync.TrustHeight,
+			TrustHash:     c.Statesync.TrustHash,
+			TrustPeriod:   c.Statesync.TrustPeriod,
+			DiscoveryTime: c.Statesync.DiscoveryTime,
+			TempDir:       c.Statesync.TempDir,
+		}
+	}
+
+	return cometbft
 }
 
 // SDKAppConfig configures the cosmos sdk application app.toml.
 type SDKAppConfig struct {
+	// Skip x/crisis invariants check on startup.
+	// +optional
+	SkipInvariants bool `json:"skipInvariants"`
+
+	// URL for a snapshot archive to download from the internet.
+	// Unarchiving the snapshot populates the data directory.
+	// Although this field is optional, you will almost always want to set it.
+	// The operator detects and properly handles the following file extensions:
+	// .tar, .tar.gz, .tar.gzip, .tar.lz4
+	// Use SnapshotScript if the snapshot archive is unconventional or requires special handling.
+	// +optional
+	SnapshotURL *string `json:"snapshotURL"`
+
+	// Specify shell (sh) script commands to properly download and process a snapshot archive.
+	// Prefer SnapshotURL if possible.
+	// The available shell commands are from docker image ghcr.io/strangelove-ventures/infra-toolkit, including wget and curl.
+	// Save the file to env var $GENESIS_FILE.
+	// Takes precedence over SnapshotURL.
+	// Hint: Use "set -eux" in your script.
+	// Available env vars:
+	// $HOME: The user's home directory.
+	// $CHAIN_HOME: The home directory for the chain, aka: --home flag
+	// $DATA_DIR: The directory for the database files.
+	// +optional
+	SnapshotScript *string `json:"snapshotScript"`
+
 	// The minimum gas prices a validator is willing to accept for processing a
 	// transaction. A transaction's fees must meet the minimum of any denomination
 	// specified in this config (e.g. 0.25token1;0.0001token2).
@@ -658,6 +783,7 @@ type Pruning struct {
 	// nothing: all historic states will be saved, nothing will be deleted (i.e. archiving node).
 	// everything: all saved states will be deleted, storing only the current state; pruning at 10 block intervals.
 	// custom: allow pruning options to be manually specified through Interval, KeepEvery, KeepRecent.
+	// +kubebuilder:default:=default
 	// +kubebuilder:validation:Enum:=default;nothing;everything;custom
 	Strategy PruningStrategy `json:"strategy"`
 
@@ -734,6 +860,7 @@ type ServiceOverridesSpec struct {
 	// Describes ingress methods for a service.
 	// If not set, defaults to "ClusterIP".
 	// +kubebuilder:validation:Enum:=ClusterIP;NodePort;LoadBalancer;ExternalName
+	// +kubebuilder:default:=ClusterIP
 	// +optional
 	Type *corev1.ServiceType `json:"type"`
 
@@ -741,6 +868,7 @@ type ServiceOverridesSpec struct {
 	// See: https://kubernetes.io/docs/tasks/access-application-cluster/create-external-load-balancer/#caveats-and-limitations-when-preserving-source-ips
 	// If not set, defaults to "Cluster".
 	// +kubebuilder:validation:Enum:=Cluster;Local
+	// +kubebuilder:default:=Cluster
 	// +optional
 	ExternalTrafficPolicy *corev1.ServiceExternalTrafficPolicyType `json:"externalTrafficPolicy"`
 }
@@ -797,4 +925,283 @@ type CosmosFullNodeList struct {
 	metav1.TypeMeta `json:",inline"`
 	metav1.ListMeta `json:"metadata,omitempty"`
 	Items           []CosmosFullNode `json:"items"`
+}
+
+type NamadaConfig struct {
+
+	// namada use wasm. you can specify dir for wasm.
+	// If not set, defaults to "wasm"
+	// +optional
+	WasmDir *string `json:"wasmDir" toml:"wasm_dir"`
+
+	// +optional
+	Ledger *NamadaLedger `json:"ledger" toml:"ledger"`
+}
+
+func (c *NamadaConfig) ToNamadaConfig() blockchain_toml.NamadaConfigFile {
+	config := blockchain_toml.NamadaConfigFile{
+		WasmDir: c.WasmDir,
+		Ledger: blockchain_toml.NamadaLedger{
+			ChainID:        "",
+			Cometbft:       blockchain_toml.NamadaCometbft{},
+			Shell:          blockchain_toml.NamadaShell{},
+			EthereumBridge: blockchain_toml.NamadaEthereumBridge{},
+		},
+	}
+
+	ledgerShell := c.Ledger.Shell
+	if c.Ledger.Shell != nil {
+		var baseDir string
+		if ledgerShell.BaseDir != nil {
+			baseDir = *ledgerShell.BaseDir
+		} else {
+			baseDir = ""
+		}
+		config.Ledger.Shell = blockchain_toml.NamadaShell{
+			BaseDir:                    baseDir,
+			StorageReadPastHeightLimit: ledgerShell.StorageReadPastHeightLimit,
+			DbDir:                      ledgerShell.DbDir,
+			TendermintMode:             ledgerShell.TendermintMode,
+		}
+	}
+
+	ledgerEth := c.Ledger.EthereumBridge
+	if c.Ledger.EthereumBridge != nil {
+		config.Ledger.EthereumBridge = blockchain_toml.NamadaEthereumBridge{
+			Mode:              ledgerEth.Mode,
+			OracleRPCEndpoint: ledgerEth.OracleRPCEndpoint,
+			ChannelBufferSize: ledgerEth.ChannelBufferSize,
+		}
+	}
+	return config
+}
+
+type NamadaLedger struct {
+	Shell          *NamadaShell          `json:"shell" toml:"shell"`
+	EthereumBridge *NamadaEthereumBridge `json:"ethereumBridge" toml:"ethereum_bridge"`
+}
+
+type NamadaShell struct {
+	// baseDir
+	// +optional
+	BaseDir *string `json:"baseDir" toml:"base_dir"`
+
+	// When set, will limit the how many block heights in the past can the
+	// storage be queried for reading values.
+	// +optional
+	StorageReadPastHeightLimit *uint64 `json:"storageReadPastHeightLimit" toml:"storage_read_past_height_limit"`
+
+	// DB dir for namada ledger.
+	// WARNING: This configuration is not same on cometBFT.
+	// If not set, defaults to "db"
+	// +optional
+	DbDir *string `json:"dbDir" toml:"db_dir"`
+
+	// tendermint_mode specifies if tendermint is started as validator, fullnode or seednode
+	// If not set, defaults to "full"
+	// +optional
+	TendermintMode *string `json:"tendermintMode" toml:"tendermint_mode"`
+}
+
+type NamadaEthereumBridge struct {
+	Mode              *string `json:"mode" toml:"mode"`
+	OracleRPCEndpoint *string `json:"oracleRpcEndpoint" toml:"oracle_rpc_endpoint"`
+	ChannelBufferSize *int    `json:"channelBufferSize" toml:"channel_buffer_size"`
+}
+
+type RPC struct {
+	// Listening address for RPC.
+	// If not set, defaults to "tcp://0.0.0.0:26657"
+	// +kubebuilder:default:="tcp://0.0.0.0:26657"
+	// +optional
+	Laddr *string `json:"laddr" toml:"laddr"`
+
+	// rpc list of origins a cross-domain request can be executed from.
+	// Default value '[]' disables cors support.
+	// Use '["*"]' to allow any origin.
+	// +optional
+	CorsAllowedOrigins *[]string `json:"corsAllowedOrigins" toml:"cors_allowed_origins"`
+
+	// If not set, defaults to "["HEAD", "GET", "POST"]"
+	// +optional
+	CorsAllowedMethods *[]string `json:"corsAllowedMethods" toml:"cors_allowed_methods"`
+
+	// timeout for broadcast_tx_commit
+	// If not set, defaults to "10000ms"(also "10s")
+	// +optional
+	TimeoutBroadcastTxCommit *string `json:"timeoutBroadcastTxCommit" toml:"timeout_broadcast_tx_commit"`
+}
+
+func (r *RPC) ToNamadaRPC() blockchain_toml.NamadaRPC {
+	return blockchain_toml.NamadaRPC{
+		Laddr:                    r.Laddr,
+		CorsAllowedOrigins:       r.CorsAllowedOrigins,
+		CorsAllowedMethods:       r.CorsAllowedMethods,
+		TimeoutBroadcastTxCommit: r.TimeoutBroadcastTxCommit,
+	}
+}
+
+type P2P struct {
+	// Listening address for P2P cononection.
+	// If not set, defaults to "tcp://127.0.0.1:26656"
+	// +optional
+	Laddr *string `json:"laddr" toml:"laddr"`
+
+	// ExternalAddress using P2P connection.
+	// If not set, defaults to "tcp://0.0.0.0:26656" also other peer cannot find to you using PEX.
+	// +optional
+	ExternalAddress *string `json:"externalAddress" toml:"external_address"`
+
+	// Seeds for P2P.
+	// Comma delimited list of p2p seed nodes in <ID>@<IP>:<PORT> format.
+	// +kubebuilder:validation:MinLength:=1
+	// +optional
+	Seeds *string `json:"seeds" toml:"seeds"`
+
+	// PersistentPeer address list for your P2P connection.
+	// Comma delimited list of p2p nodes in <ID>@<IP>:<PORT> format to keep persistent p2p connections.
+	// +kubebuilder:validation:MinLength:=1
+	// +optional
+	PersistentPeers *string `json:"persistentPeers" toml:"persistent_peers"`
+
+	// It could be different depending on what chain you run.
+	// Cosmos - 20, Namada - 40
+	// +kubebuilder:validation:Minimum:=0
+	// +optional
+	MaxNumInboundPeers *int32 `json:"maxNumInboundPeers" toml:"max_num_inbound_peers"`
+
+	// It could be different depending on what chain you run.
+	// Cosmos - 20, Namada - 10
+	// +kubebuilder:validation:Minimum:=0
+	// +optional
+	MaxNumOutboundPeers *int32 `json:"maxNumOutboundPeers" toml:"max_num_outbound_peers"`
+
+	// Whether peers can be exchanged.
+	// If not set, defaults to true
+	// +optional
+	Pex *bool `json:"pex" toml:"pex"`
+
+	// Whether you'll run seed node.
+	// WARNING: If you run seed node, the node will disconnect with other peers after transfer your peers.
+	// If not set, defaults to false
+	// +optional
+	SeedMode *bool `json:"seedMode" toml:"seed_mode"`
+
+	// For sentry node.
+	// Comma delimited list of node/peer IDs to keep private (will not be gossiped to other peers)
+	// If not set, defaults to ""
+	// +optional
+	PrivatePeerIds *string `json:"privatePeerIds" toml:"private_peer_ids"`
+
+	// Comma delimited list of node/peer IDs, to which a connection will be (re)established ignoring any existing limits.
+	// +optional
+	UnconditionalPeerIDs *string `json:"unconditionalPeerIDs"`
+}
+
+func (p *P2P) ToNamadaP2P() blockchain_toml.NamadaP2P {
+	return blockchain_toml.NamadaP2P{
+		Laddr:                p.Laddr,
+		ExternalAddress:      p.ExternalAddress,
+		Seeds:                p.Seeds,
+		PersistentPeers:      p.PersistentPeers,
+		MaxNumInboundPeers:   p.MaxNumInboundPeers,
+		MaxNumOutboundPeers:  p.MaxNumOutboundPeers,
+		Pex:                  p.Pex,
+		SeedMode:             p.SeedMode,
+		PrivatePeerIds:       p.PrivatePeerIds,
+		UnconditionalPeerIds: p.UnconditionalPeerIDs,
+	}
+}
+
+type Consensus struct {
+
+	// If not set, defaults to 0
+	// +optional
+	DoubleSignCheckHeight *uint64 `json:"doubleSignCheckHeight" toml:"double_sign_check_height"`
+
+	// If not set, defaults to false
+	// +optional
+	SkipTimeoutCommit *bool `json:"skipTimeoutCommit" toml:"skip_timeout_commit"`
+
+	// If not set, defaults to true
+	// +optional
+	CreateEmptyBlocks *bool `json:"createEmptyBlocks" toml:"create_empty_blocks"`
+
+	// If not set, defaults to 0s
+	// +optional
+	CreateEmptyBlocksInterval *string `json:"createEmptyBlocksInterval" toml:"create_empty_blocks_interval"`
+
+	// If not set, defaults to 100ms
+	// +optional
+	PeerGossipSleepDuration *string `json:"peerGossipSleepDuration" toml:"peer_gossip_sleep_duration"`
+}
+
+func (c *Consensus) ToNamadaConsensus() blockchain_toml.NamadaConsensus {
+	return blockchain_toml.NamadaConsensus{
+		DoubleSignCheckHeight:     c.DoubleSignCheckHeight,
+		SkipTimeoutCommit:         c.SkipTimeoutCommit,
+		CreateEmptyBlocks:         c.CreateEmptyBlocks,
+		CreateEmptyBlocksInterval: c.CreateEmptyBlocksInterval,
+		PeerGossipSleepDuration:   c.PeerGossipSleepDuration,
+	}
+}
+
+type Storage struct {
+
+	// Set to true to discard ABCI responses from the state store, which can save a
+	// considerable amount of disk space. Set to false to ensure ABCI responses are
+	// persisted. ABCI responses are required for /block_results RPC queries, and to
+	// reindex events in the command-line tool.
+	//
+	// If not set, defaults to false
+	// +optional
+	DiscardAbciResponses *bool `json:"discardAbciResponses" toml:"discard_abci_responses"`
+}
+
+type TxIndex struct {
+
+	// It could be different depending on what chain you run.
+	// cosmos - "kv", namada - "null"
+	// +optional
+	Indexer *string `json:"indexer" toml:"indexer"`
+}
+
+type Instrumentation struct {
+
+	// Whether you open prometheus service.
+	// If not set, defaults to true
+	// +optional
+	Prometheus *bool `json:"prometheus" toml:"prometheus"`
+
+	// Where you want to open prometheus.
+	// If not set, defaults to "26660"
+	// +optional
+	PrometheusListenAddr *string `json:"prometheusListenAddr" toml:"prometheus_listen_addr"`
+}
+
+type Statesync struct {
+	// which you enable stateSync
+	// If not set, defaults to false
+	// +optional
+	Enable *bool `json:"enable" toml:"enable"`
+
+	// +optional
+	RPCServers *string `json:"rpcServers" toml:"rpc_servers"`
+
+	// +optional
+	TrustHeight *uint64 `json:"trustHeight" toml:"trust_height"`
+
+	// +optional
+	TrustHash *string `json:"trustHash" toml:"trust_hash"`
+
+	// If not set, defaults to "168h0m0s"
+	// +optional
+	TrustPeriod *string `json:"trustPeriod" toml:"trust_period"`
+
+	// If not set, defaults to "15000ms"("15s")
+	// +optional
+	DiscoveryTime *string `json:"discoveryTime" toml:"discovery_time"`
+
+	// +optional
+	TempDir *string `json:"tempDir" toml:"temp_dir"`
 }

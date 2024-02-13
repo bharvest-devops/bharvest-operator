@@ -16,6 +16,8 @@ import (
 )
 
 func defaultCRD() cosmosv1.CosmosFullNode {
+	cometConfig := cosmosv1.CometConfig{}
+	appConfig := cosmosv1.SDKAppConfig{}
 	return cosmosv1.CosmosFullNode{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:            "osmosis",
@@ -23,7 +25,11 @@ func defaultCRD() cosmosv1.CosmosFullNode {
 			ResourceVersion: "_resource_version_",
 		},
 		Spec: cosmosv1.FullNodeSpec{
-			ChainSpec: cosmosv1.ChainSpec{Network: "mainnet"},
+			ChainSpec: cosmosv1.ChainSpec{
+				Network:   "mainnet",
+				CosmosSDK: &appConfig,
+				Comet:     &cometConfig,
+			},
 			PodTemplate: cosmosv1.PodSpec{
 				Image: "busybox:v1.2.3",
 				Resources: corev1.ResourceRequirements{
@@ -220,8 +226,9 @@ func TestPodBuilder(t *testing.T) {
 		crd := defaultCRD()
 		const wantWrkDir = "/home/operator"
 		crd.Spec.ChainSpec.ChainID = "osmosis-123"
+		crd.Spec.ChainSpec.ChainType = chainTypeCosmos
 		crd.Spec.ChainSpec.Binary = "osmosisd"
-		crd.Spec.ChainSpec.SnapshotURL = ptr("https://example.com/snapshot.tar")
+		crd.Spec.ChainSpec.CosmosSDK.SnapshotURL = ptr("https://example.com/snapshot.tar")
 		crd.Spec.PodTemplate.Image = "main-image:v1.2.3"
 		builder := NewPodBuilder(&crd)
 		pod, err := builder.WithOrdinal(6).Build()
@@ -247,6 +254,10 @@ func TestPodBuilder(t *testing.T) {
 		require.Equal(t, startContainer.Env[4].Value, "/home/operator/cosmos/config")
 		require.Equal(t, startContainer.Env[5].Name, "DATA_DIR")
 		require.Equal(t, startContainer.Env[5].Value, "/home/operator/cosmos/data")
+		require.Equal(t, startContainer.Env[6].Name, "CHAIN_ID")
+		require.Equal(t, startContainer.Env[6].Value, crd.Spec.ChainSpec.ChainID)
+		require.Equal(t, startContainer.Env[7].Name, "CHAIN_TYPE")
+		require.Equal(t, startContainer.Env[7].Value, crd.Spec.ChainSpec.ChainType)
 		require.Equal(t, envVars(&crd), startContainer.Env)
 
 		healthContainer := pod.Spec.Containers[1]
@@ -267,12 +278,12 @@ func TestPodBuilder(t *testing.T) {
 		require.Len(t, lo.Map(pod.Spec.InitContainers, func(c corev1.Container, _ int) string { return c.Name }), 7)
 
 		wantInitImages := []string{
-			"ghcr.io/strangelove-ventures/infra-toolkit:v0.0.1",
+			"ghcr.io/bharvest-devops/infratoolkit:v0.1.0",
 			"main-image:v1.2.3",
-			"ghcr.io/strangelove-ventures/infra-toolkit:v0.0.1",
-			"ghcr.io/strangelove-ventures/infra-toolkit:v0.0.1",
-			"ghcr.io/strangelove-ventures/infra-toolkit:v0.0.1",
-			"ghcr.io/strangelove-ventures/infra-toolkit:v0.0.1",
+			"ghcr.io/bharvest-devops/infratoolkit:v0.1.0",
+			"ghcr.io/bharvest-devops/infratoolkit:v0.1.0",
+			"ghcr.io/bharvest-devops/infratoolkit:v0.1.0",
+			"ghcr.io/bharvest-devops/infratoolkit:v0.1.0",
 			//"ghcr.io/strangelove-ventures/cosmos-operator:latest",
 			"ghcr.io/bharvest-devops/cosmos-operator:latest",
 		}
@@ -328,6 +339,10 @@ func TestPodBuilder(t *testing.T) {
 		require.Equal(t, container.Env[4].Value, "/home/operator/.osmosisd/config")
 		require.Equal(t, container.Env[5].Name, "DATA_DIR")
 		require.Equal(t, container.Env[5].Value, "/home/operator/.osmosisd/data")
+		require.Equal(t, container.Env[6].Name, "CHAIN_ID")
+		require.Equal(t, container.Env[6].Value, crd.Spec.ChainSpec.ChainID)
+		require.Equal(t, container.Env[7].Name, "CHAIN_TYPE")
+		require.Equal(t, container.Env[7].Value, crd.Spec.ChainSpec.ChainType)
 
 		require.NotEmpty(t, pod.Spec.InitContainers)
 
@@ -434,7 +449,7 @@ func TestPodBuilder(t *testing.T) {
 		require.Equal(t, []string{"gaiad"}, c.Command)
 		require.Equal(t, []string{"start", "--home", defaultHome}, c.Args)
 
-		cmdCrd.Spec.ChainSpec.SkipInvariants = true
+		cmdCrd.Spec.ChainSpec.CosmosSDK.SkipInvariants = true
 		pod, err = NewPodBuilder(&cmdCrd).WithOrdinal(1).Build()
 		require.NoError(t, err)
 		c = pod.Spec.Containers[0]
@@ -626,6 +641,10 @@ gaiad start --home /home/operator/cosmos`
 	})
 
 	test.HasTypeLabel(t, func(crd cosmosv1.CosmosFullNode) []map[string]string {
+		cometConfig := cosmosv1.CometConfig{}
+		appConfig := cosmosv1.SDKAppConfig{}
+		crd.Spec.ChainSpec.Comet = &cometConfig
+		crd.Spec.ChainSpec.CosmosSDK = &appConfig
 		builder := NewPodBuilder(&crd)
 		pod, _ := builder.WithOrdinal(5).Build()
 		return []map[string]string{pod.Labels}
@@ -642,6 +661,8 @@ func TestChainHomeDir(t *testing.T) {
 
 func TestPVCName(t *testing.T) {
 	crd := defaultCRD()
+	appConfig := cosmosv1.SDKAppConfig{}
+	crd.Spec.ChainSpec.CosmosSDK = &appConfig
 	builder := NewPodBuilder(&crd)
 	pod, err := builder.WithOrdinal(5).Build()
 	require.NoError(t, err)

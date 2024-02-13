@@ -59,7 +59,6 @@ func (pc PodControl) Reconcile(
 	); err != nil {
 		return false, kube.TransientError(fmt.Errorf("list existing pods: %w", err))
 	}
-
 	wantPods, err := BuildPods(crd, cksums)
 	if err != nil {
 		return false, kube.UnrecoverableError(fmt.Errorf("build pods: %w", err))
@@ -193,7 +192,6 @@ func (pc PodControl) Reconcile(
 			// All pods are updated.
 			return false, nil
 		}
-
 		// Signal requeue.
 		return true, nil
 	}

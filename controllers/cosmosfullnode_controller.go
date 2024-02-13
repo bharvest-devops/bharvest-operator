@@ -35,7 +35,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
-	"sigs.k8s.io/controller-runtime/pkg/source"
 )
 
 const controllerOwnerField = ".metadata.controller"
@@ -195,6 +194,11 @@ func (r *CosmosFullNodeReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 	}
 
 	// Check final state and requeue if necessary.
+
+	for _, i := range peers {
+		reporter.Debug(i.ExternalAddress)
+	}
+
 	if peers.HasIncompleteExternalAddress() {
 		reporter.Info("Requeueing due to incomplete p2p external addresses")
 		reporter.RecordInfo("P2PIncomplete", "Waiting for p2p service IPs or Hostnames to be ready.")
@@ -314,16 +318,16 @@ func (r *CosmosFullNodeReconciler) SetupWithManager(ctx context.Context, mgr ctr
 	cbuilder := ctrl.NewControllerManagedBy(mgr).For(&cosmosv1.CosmosFullNode{})
 
 	// Watch for delete events for certain resources.
-	for _, kind := range []*source.Kind{
-		{Type: &corev1.Pod{}},
-		{Type: &corev1.PersistentVolumeClaim{}},
-		{Type: &corev1.ConfigMap{}},
-		{Type: &corev1.Service{}},
-		{Type: &corev1.Secret{}},
+	for _, object := range []client.Object{
+		&corev1.Pod{},
+		&corev1.PersistentVolumeClaim{},
+		&corev1.ConfigMap{},
+		&corev1.Service{},
+		&corev1.Secret{},
 	} {
 		cbuilder.Watches(
-			kind,
-			&handler.EnqueueRequestForOwner{OwnerType: &cosmosv1.CosmosFullNode{}, IsController: true},
+			object,
+			handler.EnqueueRequestForOwner(r.Scheme(), r.Client.RESTMapper(), &cosmosv1.CosmosFullNode{}),
 			builder.WithPredicates(&predicate.Funcs{
 				DeleteFunc: func(_ event.DeleteEvent) bool { return true },
 			}),

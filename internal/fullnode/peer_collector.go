@@ -145,27 +145,49 @@ func (c PeerCollector) addExternalAddress(ctx context.Context, peers Peers, crd 
 		return kube.TransientError(fmt.Errorf("get server %s: %w", svcName, err))
 	}
 
-	if svc.Spec.Type != corev1.ServiceTypeLoadBalancer && (svc.Spec.Type != corev1.ServiceTypeNodePort) {
+	// Note: The externalIP defaults to spec.InstanceOverrides[instance].ExternalAddress.
+	// but If not set, it'll be set according to.
+	if (svc.Spec.Type == corev1.ServiceTypeLoadBalancer) || (svc.Spec.Type == corev1.ServiceTypeNodePort) {
+		objKey := c.objectKey(crd, ordinal)
+		info := peers[objKey]
+		info.hasExternalAddress = true
+		defer func() { peers[objKey] = info }()
+		externalAddress, err := GetExternalAddress(svc)
+		if err != nil {
+			return err
+		}
+		info.ExternalAddress = externalAddress
+
 		return nil
 	}
 
-	objKey := c.objectKey(crd, ordinal)
-	info := peers[objKey]
-	info.hasExternalAddress = true
-	defer func() { peers[objKey] = info }()
+	return nil
+}
 
+func GetExternalAddress(svc corev1.Service) (string, error) {
 	if svc.Spec.Type == corev1.ServiceTypeLoadBalancer {
+
 		ingress := svc.Status.LoadBalancer.Ingress
 		if len(ingress) == 0 {
-			return nil
+			return "", nil
 		}
 
 		lb := ingress[0]
 		host := lo.Ternary(lb.IP != "", lb.IP, lb.Hostname)
 		if host != "" {
-			info.ExternalAddress = net.JoinHostPort(host, strconv.Itoa(p2pPort))
+			return net.JoinHostPort(host, strconv.Itoa(p2pPort)), nil
 		}
-	} else {
+	} else if svc.Spec.Type == corev1.ServiceTypeNodePort {
+
+		resp, err := resty.New().R().
+			Get("http://ipv4.icanhazip.com")
+		var externalIP string
+		if err != nil || resp.IsError() {
+			return "", err
+		} else {
+			externalIP = resp.String()
+		}
+
 		var nodePort int32
 		for _, i := range svc.Spec.Ports {
 			if i.Name == "p2p" {
@@ -173,21 +195,7 @@ func (c PeerCollector) addExternalAddress(ctx context.Context, peers Peers, crd 
 			}
 		}
 
-		client := resty.New()
-		resp, err := client.R().
-			EnableTrace().
-			Get("https://api.ipify.org")
-		var externalIP string
-		if err != nil {
-			externalIP = "0.0.0.0"
-			//return err
-		} else {
-			externalIP = resp.String()
-		}
-
-		info.ExternalAddress = net.JoinHostPort(externalIP, strconv.Itoa(int(nodePort)))
-
+		return net.JoinHostPort(externalIP, strconv.Itoa(int(nodePort))), nil
 	}
-
-	return nil
+	return "", fmt.Errorf("incorrect service type: %s", svc.Spec.Type)
 }
