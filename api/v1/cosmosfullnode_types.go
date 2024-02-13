@@ -871,6 +871,7 @@ type ServiceOverridesSpec struct {
 	// +optional
 	ExternalTrafficPolicy *corev1.ServiceExternalTrafficPolicyType `json:"externalTrafficPolicy"`
 
+	// +optional
 	Ports []corev1.ServicePort `json:"ports"`
 }
 
