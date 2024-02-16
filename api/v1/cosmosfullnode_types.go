@@ -773,7 +773,7 @@ type SDKAppConfig struct {
 	// Must be valid toml.
 	// Important: all keys must be "kebab-case" which differs from config.toml.
 	// +optional
-	TomlOverrides *string `json:"overrides"`
+	TomlOverrides *string `json:"tomlOverrides"`
 }
 
 // Pruning controls the pruning settings.
