@@ -235,6 +235,10 @@ func addCosmosAppToml(app *blockchain_toml.CosmosAppFile, crd *cosmosv1.CosmosFu
 		cosmosSDK = crd.Spec.ChainSpec.CosmosSDK
 	)
 
+	if cosmosSDK == nil {
+		*cosmosSDK = cosmosv1.SDKAppConfig{}
+	}
+
 	app.MinimumGasPrices = &cosmosSDK.MinGasPrice
 	app.API.EnabledUnsafeCors = &cosmosSDK.APIEnableUnsafeCORS
 	app.GrpcWeb.EnableUnsafeCors = &cosmosSDK.GRPCWebEnableUnsafeCORS
