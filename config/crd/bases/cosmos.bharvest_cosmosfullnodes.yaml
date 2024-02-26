@@ -282,12 +282,6 @@ spec:
                           in this config (e.g. 0.25token1;0.0001token2).
                         minLength: 1
                         type: string
-                      overrides:
-                        description: 'Custom app config toml. Values entered here
-                          take precedence over all other configuration. Must be valid
-                          toml. Important: all keys must be "kebab-case" which differs
-                          from config.toml.'
-                        type: string
                       pruning:
                         description: Controls pruning settings. i.e. How much data
                           to keep on disk. If not set, defaults to "default" pruning
@@ -370,6 +364,12 @@ spec:
                           handles the following file extensions: .tar, .tar.gz, .tar.gzip,
                           .tar.lz4 Use SnapshotScript if the snapshot archive is unconventional
                           or requires special handling.'
+                        type: string
+                      tomlOverrides:
+                        description: 'Custom app config toml. Values entered here
+                          take precedence over all other configuration. Must be valid
+                          toml. Important: all keys must be "kebab-case" which differs
+                          from config.toml.'
                         type: string
                     required:
                     - minGasPrice
