@@ -578,10 +578,6 @@ func startCmdAndArgs(crd *cosmosv1.CosmosFullNode) (string, []string) {
 		privvalSleep int32 = 10
 	)
 
-	if crd.Spec.PodTemplate.TerminationPolicy != "" {
-		args = append(args, ";trap : TERM INT; sleep infinity & wait")
-	}
-
 	// Determine blockchain types to operate
 	if crd.Spec.ChainSpec.ChainType == chainTypeCosmovisor {
 		binary = "sh"

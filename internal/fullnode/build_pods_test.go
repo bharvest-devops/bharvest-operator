@@ -61,6 +61,45 @@ func TestBuildPods(t *testing.T) {
 		require.Equal(t, pod.Spec, pods[0].Object().Spec)
 	})
 
+	t.Run("termination policy test", func(t *testing.T) {
+		crd := &cosmosv1.CosmosFullNode{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "agoric",
+				Namespace: "test",
+			},
+			Spec: cosmosv1.FullNodeSpec{
+				Replicas:  5,
+				ChainSpec: cosmosv1.ChainSpec{Network: "devnet"},
+				PodTemplate: cosmosv1.PodSpec{
+					Image: "busybox:latest",
+				},
+				InstanceOverrides: nil,
+			},
+		}
+		appConfig := cosmosv1.SDKAppConfig{}
+		crd.Spec.ChainSpec.CosmosSDK = &appConfig
+		crd.Spec.PodTemplate.TerminationPolicy = cosmosv1.RemainTerminationPolicy
+
+		cksums := make(ConfigChecksums)
+		for i := 0; i < int(crd.Spec.Replicas); i++ {
+			cksums[client.ObjectKey{Namespace: crd.Namespace, Name: fmt.Sprintf("agoric-%d", i)}] = strconv.Itoa(i)
+		}
+
+		pods, err := BuildPods(crd, cksums)
+		require.NoError(t, err)
+		require.Equal(t, 5, len(pods))
+
+		for _, p := range pods {
+			for _, c := range p.Object().Spec.InitContainers {
+				require.Contains(t, c.Args, ";trap : TERM INT; sleep infinity & wait")
+			}
+			for _, c := range p.Object().Spec.Containers {
+				require.Contains(t, c.Args, ";trap : TERM INT; sleep infinity & wait")
+			}
+		}
+
+	})
+
 	t.Run("instance overrides", func(t *testing.T) {
 		const (
 			image         = "agoric:latest"
