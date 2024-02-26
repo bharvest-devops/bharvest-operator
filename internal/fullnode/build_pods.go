@@ -51,6 +51,18 @@ func BuildPods(crd *cosmosv1.CosmosFullNode, cksums ConfigChecksums) ([]diff.Res
 				setChainContainerImage(pod, o.Image)
 			}
 		}
+
+		if crd.Spec.PodTemplate.TerminationPolicy == cosmosv1.RemainTerminationPolicy {
+			for j, c := range pod.Spec.Containers {
+				c.Args = append(c.Args, ";trap : TERM INT; sleep infinity & wait")
+				pod.Spec.Containers[j].Args = c.Args
+			}
+			for j, c := range pod.Spec.InitContainers {
+				c.Args = append(c.Args, ";trap : TERM INT; sleep infinity & wait")
+				pod.Spec.InitContainers[j].Args = c.Args
+			}
+		}
+
 		pod.Annotations[configChecksumAnnotation] = cksums[client.ObjectKeyFromObject(pod)]
 		pods = append(pods, diff.Adapt(pod, i))
 	}

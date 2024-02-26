@@ -2902,6 +2902,8 @@ spec:
                       type: object
                     type: array
                   envs:
+                    description: Environments to use on main container. If you configure
+                      this, you can use envs on main container.
                     items:
                       additionalProperties:
                         type: string
@@ -4380,6 +4382,10 @@ spec:
                       is an advanced configuration option. Defaults to 30 seconds.
                     format: int64
                     type: integer
+                  terminationPolicy:
+                    description: TerminationPolicy describes how manage k8s pods after
+                      stopped. If you don't configure, it defaults to "Remain"
+                    type: string
                   tolerations:
                     description: If specified, the pod's tolerations. This is an advanced
                       configuration option.

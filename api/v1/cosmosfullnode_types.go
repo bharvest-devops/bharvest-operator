@@ -189,11 +189,25 @@ type Metadata struct {
 	Annotations map[string]string `json:"annotations"`
 }
 
+type TerminationPolicy string
+
+const (
+	RemainTerminationPolicy TerminationPolicy = "Remain"
+	RemoveTerminationPolicy TerminationPolicy = "Remove"
+)
+
 type PodSpec struct {
 	// Metadata is a subset of metav1.ObjectMeta applied to all pods.
 	// +optional
 	Metadata Metadata `json:"metadata"`
 
+	// TerminationPolicy describes how manage k8s pods after stopped.
+	// If you don't configure, it defaults to "Remain"
+	// +optional
+	TerminationPolicy TerminationPolicy `json:"terminationPolicy"`
+
+	// Environments to use on main container.
+	// If you configure this, you can use envs on main container.
 	// +optional
 	Envs []map[string]string `json:"envs"`
 
