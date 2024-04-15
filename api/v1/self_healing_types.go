@@ -1,8 +1,10 @@
 package v1
 
 import (
+	"encoding/json"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"time"
 )
 
 // SelfHealingController is the canonical controller name.
@@ -53,14 +55,34 @@ type PVCAutoScaleSpec struct {
 
 type HeightDriftMitigationSpec struct {
 	// If pod's height falls behind the max height of all pods by this value or more AND the pod's RPC /status endpoint
-	// reports itself as in-sync, the pod is deleted. The CosmosFullNodeController creates a new pod to replace it.
+	// reports itself as in-sync, the pod is deleted. The CosmosFullNodeController creates a new pod to replace it
 	// Pod deletion respects the CosmosFullNode.Spec.RolloutStrategy and will not delete more pods than set
 	// by the strategy to prevent downtime.
 	// This workaround is necessary to mitigate a bug in the Cosmos SDK and/or CometBFT where pods report themselves as
 	// in-sync even though they can lag thousands of blocks behind the chain tip and cannot catch up.
 	// A "rebooted" pod /status reports itself correctly and allows it to catch up to chain tip.
 	// +kubebuilder:validation:Minimum:=1
-	Threshold uint32 `json:"threshold"`
+	ThresholdHeight uint32 `json:"thresholdHeight"`
+
+	ThresholdTime Duration `json:"thresholdTime"`
+}
+
+type Duration time.Duration
+
+// UnmarshalJSON implements the json.Unmarshaler interface for Duration
+func (d *Duration) UnmarshalJSON(data []byte) error {
+	// Unmarshal the JSON data into a string
+	var str string
+	if err := json.Unmarshal(data, &str); err != nil {
+		return err
+	}
+	// Parse the duration string
+	duration, err := time.ParseDuration(str)
+	if err != nil {
+		return err
+	}
+	*d = Duration(duration)
+	return nil
 }
 
 type SelfHealingStatus struct {
