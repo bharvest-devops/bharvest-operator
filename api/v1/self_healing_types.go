@@ -64,6 +64,7 @@ type HeightDriftMitigationSpec struct {
 	// +kubebuilder:validation:Minimum:=1
 	ThresholdHeight uint32 `json:"thresholdHeight"`
 
+	// +optional
 	ThresholdTime Duration `json:"thresholdTime"`
 }
 
