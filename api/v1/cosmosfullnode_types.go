@@ -17,12 +17,10 @@ limitations under the License.
 package v1
 
 import (
-	"encoding/json"
 	blockchain_toml "github.com/bharvest-devops/blockchain-toml"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/intstr"
-	"time"
 )
 
 func init() {
@@ -162,27 +160,7 @@ type SyncInfoPodStatus struct {
 	Error *string `json:"error,omitempty"`
 
 	// +optional
-	HeightRetainTime *Duration `json:"heightRetainTime"`
-}
-
-type Duration time.Duration
-
-func (d *Duration) UnmarshalJSON(data []byte) error {
-	var durationStr string
-	if err := json.Unmarshal(data, &durationStr); err != nil {
-		return err
-	}
-	duration, err := time.ParseDuration(durationStr)
-	if err != nil {
-		return err
-	}
-	*d = Duration(duration)
-	return nil
-}
-
-func (d *Duration) MarshalJSON() ([]byte, error) {
-	durationStr := time.Duration(*d).String()
-	return json.Marshal(durationStr)
+	HeightRetainTime *metav1.Duration `json:"heightRetainTime"`
 }
 
 type FullNodeSnapshotStatus struct {

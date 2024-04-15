@@ -65,7 +65,7 @@ type HeightDriftMitigationSpec struct {
 	// +kubebuilder:validation:Type=string
 	// +kubebuilder:validation:Schemaless
 	// +optional
-	ThresholdTime Duration `json:"thresholdTime"`
+	ThresholdTime metav1.Duration `json:"thresholdTime"`
 }
 
 type SelfHealingStatus struct {

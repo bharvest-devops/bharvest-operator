@@ -65,8 +65,8 @@ func TestSyncInfoStatus(t *testing.T) {
 
 		return cosmos.StatusCollection{
 			// Purposefully out of order to test sorting.
-			{Pod: &corev1.Pod{ObjectMeta: metav1.ObjectMeta{Name: "pod-0"}}, Status: notInSync, TS: ts, HeightRetainTime: time.Duration(10000000000)},
-			{Pod: &corev1.Pod{ObjectMeta: metav1.ObjectMeta{Name: "pod-1"}}, Status: inSync, TS: ts, HeightRetainTime: time.Duration(10000000000)},
+			{Pod: &corev1.Pod{ObjectMeta: metav1.ObjectMeta{Name: "pod-0"}}, Status: notInSync, TS: ts, HeightRetainTime: metav1.Duration{Duration: time.Duration(10000000000)}},
+			{Pod: &corev1.Pod{ObjectMeta: metav1.ObjectMeta{Name: "pod-1"}}, Status: inSync, TS: ts, HeightRetainTime: metav1.Duration{Duration: time.Duration(10000000000)}},
 			{Pod: &corev1.Pod{ObjectMeta: metav1.ObjectMeta{Name: "pod-2"}}, Err: errors.New("some error"), TS: ts},
 		}
 	}
@@ -77,13 +77,13 @@ func TestSyncInfoStatus(t *testing.T) {
 			Timestamp:        wantTS,
 			Height:           ptr(uint64(9999)),
 			InSync:           ptr(false),
-			HeightRetainTime: ptr(cosmosv1.Duration(10000000000)),
+			HeightRetainTime: ptr(metav1.Duration{Duration: time.Duration(10000000000)}),
 		},
 		"pod-1": {
 			Timestamp:        wantTS,
 			Height:           ptr(uint64(10000)),
 			InSync:           ptr(true),
-			HeightRetainTime: ptr(cosmosv1.Duration(10000000000)),
+			HeightRetainTime: ptr(metav1.Duration{Duration: time.Duration(10000000000)}),
 		},
 		"pod-2": {
 			Timestamp: wantTS,

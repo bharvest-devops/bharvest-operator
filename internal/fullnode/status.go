@@ -43,7 +43,7 @@ func SyncInfoStatus(
 		}
 		stat.Height = ptr(comet.LatestBlockHeight())
 		stat.InSync = ptr(!comet.Result.SyncInfo.CatchingUp)
-		stat.HeightRetainTime = ptr(cosmosv1.Duration(item.HeightRetainTime))
+		stat.HeightRetainTime = ptr(item.HeightRetainTime)
 		status[podName] = &stat
 	}
 

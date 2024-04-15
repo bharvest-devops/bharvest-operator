@@ -2,6 +2,7 @@ package cosmos
 
 import (
 	"errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"strconv"
 	"time"
 
@@ -17,7 +18,7 @@ type StatusItem struct {
 	Status           CometStatus
 	TS               time.Time
 	Err              error
-	HeightRetainTime time.Duration
+	HeightRetainTime metav1.Duration
 }
 
 // GetPod returns the pod.

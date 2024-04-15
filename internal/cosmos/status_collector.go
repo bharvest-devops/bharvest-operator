@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sort"
 	"time"
 
@@ -60,7 +61,9 @@ func (coll StatusCollector) Collect(ctx context.Context, pods []corev1.Pod) Stat
 			beforeHeight := statuses[i].Status.LatestBlockHeight()
 			statuses[i].Status = resp
 			if statuses[i].Status.LatestBlockHeight() == beforeHeight {
-				statuses[i].HeightRetainTime = statuses[i].HeightRetainTime + now.Sub(beforeTS)
+				statuses[i].HeightRetainTime = metav1.Duration{
+					Duration: statuses[i].HeightRetainTime.Duration + now.Sub(beforeTS),
+				}
 			}
 			return nil
 		})
