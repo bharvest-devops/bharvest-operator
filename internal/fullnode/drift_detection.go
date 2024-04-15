@@ -30,14 +30,23 @@ func NewDriftDetection(collector StatusCollector) DriftDetection {
 
 // LaggingPods returns pods that are lagging behind the latest block height.
 func (d DriftDetection) LaggingPods(ctx context.Context, crd *cosmosv1.CosmosFullNode) []*corev1.Pod {
+	var lagging []*corev1.Pod
 	synced := d.collector.Collect(ctx, client.ObjectKeyFromObject(crd)).Synced()
+
+	lagging = lo.FilterMap(synced, func(item cosmos.StatusItem, _ int) (*corev1.Pod, bool) {
+		isLagging := item.HeightRetainTime >= time.Duration(crd.Spec.SelfHeal.HeightDriftMitigation.ThresholdTime)
+		return item.GetPod(), isLagging
+	})
+	if len(lagging) > 0 {
+		return lagging
+	}
 
 	maxHeight := lo.MaxBy(synced, func(a cosmos.StatusItem, b cosmos.StatusItem) bool {
 		return a.Status.LatestBlockHeight() > b.Status.LatestBlockHeight()
 	}).Status.LatestBlockHeight()
 
-	thresh := uint64(crd.Spec.SelfHeal.HeightDriftMitigation.Threshold)
-	lagging := lo.FilterMap(synced, func(item cosmos.StatusItem, _ int) (*corev1.Pod, bool) {
+	thresh := uint64(crd.Spec.SelfHeal.HeightDriftMitigation.ThresholdHeight)
+	lagging = lo.FilterMap(synced, func(item cosmos.StatusItem, _ int) (*corev1.Pod, bool) {
 		isLagging := maxHeight-item.Status.LatestBlockHeight() >= thresh
 		return item.GetPod(), isLagging
 	})

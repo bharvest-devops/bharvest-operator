@@ -55,7 +55,7 @@ func TestDriftDetection_LaggingPods(t *testing.T) {
 		} {
 			crd.Spec.SelfHeal = &cosmosv1.SelfHealSpec{}
 			crd.Spec.SelfHeal.HeightDriftMitigation = &cosmosv1.HeightDriftMitigationSpec{
-				Threshold: tt.Threshold,
+				ThresholdHeight: tt.Threshold,
 			}
 
 			detector.available = func(pods []*corev1.Pod, minReady time.Duration, now time.Time) []*corev1.Pod {
@@ -89,7 +89,7 @@ func TestDriftDetection_LaggingPods(t *testing.T) {
 		var crd cosmosv1.CosmosFullNode
 		crd.Spec.SelfHeal = &cosmosv1.SelfHealSpec{}
 		crd.Spec.SelfHeal.HeightDriftMitigation = &cosmosv1.HeightDriftMitigationSpec{
-			Threshold: 25,
+			ThresholdHeight: 25,
 		}
 
 		got := detector.LaggingPods(context.Background(), &crd)
