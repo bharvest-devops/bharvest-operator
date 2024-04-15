@@ -41,6 +41,8 @@ func (coll StatusCollector) Collect(ctx context.Context, pods []corev1.Pod) Stat
 		eg.Go(func() error {
 			pod := pods[i]
 			statuses[i].Pod = &pod
+			beforeTS := statuses[i].TS
+			statuses[i].TS = now
 			ip := pod.Status.PodIP
 			if ip == "" {
 				// Check for IP, so we don't pay overhead of making a request.
@@ -58,9 +60,8 @@ func (coll StatusCollector) Collect(ctx context.Context, pods []corev1.Pod) Stat
 			beforeHeight := statuses[i].Status.LatestBlockHeight()
 			statuses[i].Status = resp
 			if statuses[i].Status.LatestBlockHeight() == beforeHeight {
-				statuses[i].HeightRetainTime = statuses[i].HeightRetainTime + now.Sub(statuses[i].TS)
+				statuses[i].HeightRetainTime = statuses[i].HeightRetainTime + now.Sub(beforeTS)
 			}
-			statuses[i].TS = now
 			return nil
 		})
 	}
