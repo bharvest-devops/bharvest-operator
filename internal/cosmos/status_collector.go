@@ -40,7 +40,6 @@ func (coll StatusCollector) Collect(ctx context.Context, pods []corev1.Pod) Stat
 		i := i
 		eg.Go(func() error {
 			pod := pods[i]
-			statuses[i].TS = now
 			statuses[i].Pod = &pod
 			ip := pod.Status.PodIP
 			if ip == "" {
@@ -56,7 +55,12 @@ func (coll StatusCollector) Collect(ctx context.Context, pods []corev1.Pod) Stat
 				statuses[i].Err = err
 				return nil
 			}
+			beforeHeight := statuses[i].Status.LatestBlockHeight()
 			statuses[i].Status = resp
+			if statuses[i].Status.LatestBlockHeight() == beforeHeight {
+				statuses[i].HeightRetainTime = statuses[i].HeightRetainTime + now.Sub(statuses[i].TS)
+			}
+			statuses[i].TS = now
 			return nil
 		})
 	}

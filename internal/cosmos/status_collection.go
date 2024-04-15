@@ -13,10 +13,11 @@ import (
 
 // StatusItem is a pod paired with its CometBFT status.
 type StatusItem struct {
-	Pod    *corev1.Pod
-	Status CometStatus
-	TS     time.Time
-	Err    error
+	Pod              *corev1.Pod
+	Status           CometStatus
+	TS               time.Time
+	Err              error
+	HeightRetainTime time.Duration
 }
 
 // GetPod returns the pod.
