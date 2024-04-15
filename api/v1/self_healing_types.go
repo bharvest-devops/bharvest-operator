@@ -3,7 +3,6 @@ package v1
 import (
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"time"
 )
 
 // SelfHealingController is the canonical controller name.
@@ -66,7 +65,7 @@ type HeightDriftMitigationSpec struct {
 	// +kubebuilder:validation:Type=string
 	// +kubebuilder:validation:Schemaless
 	// +optional
-	ThresholdTime time.Duration `json:"thresholdTime"`
+	ThresholdTime Duration `json:"thresholdTime"`
 }
 
 type SelfHealingStatus struct {

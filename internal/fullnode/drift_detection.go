@@ -38,7 +38,7 @@ func (d DriftDetection) LaggingPods(ctx context.Context, crd *cosmosv1.CosmosFul
 		if item.HeightRetainTime == initDuration {
 			return item.GetPod(), false
 		}
-		isLagging := item.HeightRetainTime >= crd.Spec.SelfHeal.HeightDriftMitigation.ThresholdTime
+		isLagging := item.HeightRetainTime >= time.Duration(crd.Spec.SelfHeal.HeightDriftMitigation.ThresholdTime)
 		return item.GetPod(), isLagging
 	})
 	if len(lagging) > 0 {

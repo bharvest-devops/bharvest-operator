@@ -77,13 +77,13 @@ func TestSyncInfoStatus(t *testing.T) {
 			Timestamp:        wantTS,
 			Height:           ptr(uint64(9999)),
 			InSync:           ptr(false),
-			HeightRetainTime: ptr(time.Duration(10000000000)),
+			HeightRetainTime: ptr(cosmosv1.Duration(10000000000)),
 		},
 		"pod-1": {
 			Timestamp:        wantTS,
 			Height:           ptr(uint64(10000)),
 			InSync:           ptr(true),
-			HeightRetainTime: ptr(time.Duration(10000000000)),
+			HeightRetainTime: ptr(cosmosv1.Duration(10000000000)),
 		},
 		"pod-2": {
 			Timestamp: wantTS,
