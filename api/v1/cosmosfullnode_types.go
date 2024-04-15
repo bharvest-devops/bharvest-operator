@@ -21,6 +21,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/intstr"
+	"time"
 )
 
 func init() {
@@ -160,7 +161,7 @@ type SyncInfoPodStatus struct {
 	Error *string `json:"error,omitempty"`
 
 	// +optional
-	HeightRetainTime *Duration `json:"heightRetainTime"`
+	HeightRetainTime *time.Duration `json:"heightRetainTime"`
 }
 
 type FullNodeSnapshotStatus struct {

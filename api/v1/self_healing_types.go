@@ -1,7 +1,6 @@
 package v1
 
 import (
-	"encoding/json"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"time"
@@ -67,25 +66,7 @@ type HeightDriftMitigationSpec struct {
 	// +kubebuilder:validation:Type=string
 	// +kubebuilder:validation:Schemaless
 	// +optional
-	ThresholdTime Duration `json:"thresholdTime"`
-}
-
-type Duration time.Duration
-
-// UnmarshalJSON implements the json.Unmarshaler interface for Duration
-func (d *Duration) UnmarshalJSON(data []byte) error {
-	// Unmarshal the JSON data into a string
-	var str string
-	if err := json.Unmarshal(data, &str); err != nil {
-		return err
-	}
-	// Parse the duration string
-	duration, err := time.ParseDuration(str)
-	if err != nil {
-		return err
-	}
-	*d = Duration(duration)
-	return nil
+	ThresholdTime time.Duration `json:"thresholdTime"`
 }
 
 type SelfHealingStatus struct {
