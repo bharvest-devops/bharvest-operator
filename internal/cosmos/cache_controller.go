@@ -3,6 +3,7 @@ package cosmos
 import (
 	"context"
 	"fmt"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sync"
 	"time"
 
@@ -144,6 +145,7 @@ func (c *CacheController) Reconcile(ctx context.Context, req reconcile.Request) 
 			c.collectFromPods(cctx, reporter, req.NamespacedName)
 			return nil
 		})
+
 	}
 
 	return finishResult, nil
@@ -159,6 +161,7 @@ func (c *CacheController) Invalidate(controller client.ObjectKey, pods []string)
 				s.Status = CometStatus{}
 				s.Err = fmt.Errorf("invalidated")
 				s.TS = now
+				s.HeightRetainTime = metav1.Duration{Duration: 0}
 			}
 		}
 	}

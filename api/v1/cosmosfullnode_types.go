@@ -160,7 +160,7 @@ type SyncInfoPodStatus struct {
 	Error *string `json:"error,omitempty"`
 
 	// +optional
-	HeightRetainTime *metav1.Duration `json:"heightRetainTime"`
+	HeightRetainTime *metav1.Duration `json:"heightRetainTime,omitempty"`
 }
 
 type FullNodeSnapshotStatus struct {
