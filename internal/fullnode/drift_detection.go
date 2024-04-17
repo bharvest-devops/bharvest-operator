@@ -2,7 +2,6 @@ package fullnode
 
 import (
 	"context"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"time"
 
 	cosmosv1 "github.com/bharvest-devops/cosmos-operator/api/v1"
@@ -35,12 +34,12 @@ func (d DriftDetection) LaggingPods(ctx context.Context, crd *cosmosv1.CosmosFul
 	synced := d.collector.Collect(ctx, client.ObjectKeyFromObject(crd)).Synced()
 
 	lagging = lo.FilterMap(synced, func(item cosmos.StatusItem, _ int) (*corev1.Pod, bool) {
-		var initDuration metav1.Duration
-		if item.HeightRetainTime == initDuration {
+		if crd.Status.SyncInfo[item.GetPod().Name] != nil {
+			isLagging := crd.Status.SyncInfo[item.GetPod().Name].HeightRetainTime.Duration >= crd.Spec.SelfHeal.HeightDriftMitigation.ThresholdTime.Duration
+			return item.GetPod(), isLagging
+		} else {
 			return item.GetPod(), false
 		}
-		isLagging := item.HeightRetainTime.Duration >= crd.Spec.SelfHeal.HeightDriftMitigation.ThresholdTime.Duration
-		return item.GetPod(), isLagging
 	})
 	if len(lagging) > 0 {
 		return lagging

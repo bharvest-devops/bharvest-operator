@@ -2,7 +2,6 @@ package cosmos
 
 import (
 	"errors"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"strconv"
 	"time"
 
@@ -14,11 +13,10 @@ import (
 
 // StatusItem is a pod paired with its CometBFT status.
 type StatusItem struct {
-	Pod              *corev1.Pod
-	Status           CometStatus
-	TS               time.Time
-	Err              error
-	HeightRetainTime metav1.Duration
+	Pod    *corev1.Pod
+	Status CometStatus
+	TS     time.Time
+	Err    error
 }
 
 // GetPod returns the pod.
@@ -66,7 +64,7 @@ func UpsertPod(coll *StatusCollection, pod *corev1.Pod) {
 			return
 		}
 	}
-	*coll = append(*coll, StatusItem{Pod: pod, TS: time.Now(), Err: errors.New("missing status"), HeightRetainTime: metav1.Duration{Duration: 0}})
+	*coll = append(*coll, StatusItem{Pod: pod, TS: time.Now(), Err: errors.New("missing status")})
 }
 
 // IntersectPods removes all pods from the collection that are not in the given list.

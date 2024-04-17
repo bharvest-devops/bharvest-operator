@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sort"
 	"time"
 
@@ -42,7 +41,6 @@ func (coll StatusCollector) Collect(ctx context.Context, pods []corev1.Pod) Stat
 		eg.Go(func() error {
 			pod := pods[i]
 			statuses[i].Pod = &pod
-			beforeTS := statuses[i].TS
 			statuses[i].TS = now
 			ip := pod.Status.PodIP
 			if ip == "" {
@@ -58,13 +56,7 @@ func (coll StatusCollector) Collect(ctx context.Context, pods []corev1.Pod) Stat
 				statuses[i].Err = err
 				return nil
 			}
-			beforeHeight := statuses[i].Status.LatestBlockHeight()
 			statuses[i].Status = resp
-			if statuses[i].Status.LatestBlockHeight() == beforeHeight {
-				statuses[i].HeightRetainTime = metav1.Duration{
-					Duration: statuses[i].HeightRetainTime.Duration + now.Sub(beforeTS),
-				}
-			}
 			return nil
 		})
 	}
