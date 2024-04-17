@@ -6,6 +6,7 @@ import (
 	"github.com/bharvest-devops/cosmos-operator/internal/cosmos"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"time"
 )
 
 // ResetStatus is used at the beginning of the reconcile loop.
@@ -47,16 +48,21 @@ func SyncInfoStatus(
 		stat.InSync = ptr(!comet.Result.SyncInfo.CatchingUp)
 
 		beforeSyncInfo := crd.Status.SyncInfo[podName]
-		if beforeSyncInfo != nil && beforeSyncInfo.Height != nil && stat.Height != nil && *beforeSyncInfo.Height == *stat.Height {
-			retainDuration = metav1.Duration{
-				Duration: beforeSyncInfo.HeightRetainTime.Duration + stat.Timestamp.Sub(beforeSyncInfo.Timestamp.Time),
+		if item.Timestamp().Add(time.Minute).Before(time.Now()) {
+			if beforeSyncInfo != nil && beforeSyncInfo.Height != nil && stat.Height != nil && *beforeSyncInfo.Height == *stat.Height {
+				retainDuration = metav1.Duration{
+					Duration: beforeSyncInfo.HeightRetainTime.Duration + stat.Timestamp.Sub(beforeSyncInfo.Timestamp.Time),
+				}
+			} else {
+				retainDuration = metav1.Duration{Duration: 0}
 			}
-			stat.HeightRetainTime = &retainDuration
 		} else {
-			retainDuration = metav1.Duration{Duration: 0}
-			stat.HeightRetainTime = &retainDuration
+			retainDuration = metav1.Duration{
+				Duration: beforeSyncInfo.HeightRetainTime.Duration,
+			}
 		}
 
+		stat.HeightRetainTime = &retainDuration
 		status[podName] = &stat
 	}
 
