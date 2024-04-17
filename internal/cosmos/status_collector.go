@@ -40,8 +40,8 @@ func (coll StatusCollector) Collect(ctx context.Context, pods []corev1.Pod) Stat
 		i := i
 		eg.Go(func() error {
 			pod := pods[i]
-			statuses[i].TS = now
 			statuses[i].Pod = &pod
+			statuses[i].TS = now
 			ip := pod.Status.PodIP
 			if ip == "" {
 				// Check for IP, so we don't pay overhead of making a request.

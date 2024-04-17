@@ -144,6 +144,7 @@ func (c *CacheController) Reconcile(ctx context.Context, req reconcile.Request) 
 			c.collectFromPods(cctx, reporter, req.NamespacedName)
 			return nil
 		})
+
 	}
 
 	return finishResult, nil

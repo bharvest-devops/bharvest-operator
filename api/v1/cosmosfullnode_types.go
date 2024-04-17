@@ -158,6 +158,9 @@ type SyncInfoPodStatus struct {
 	// Error message if unable to fetch consensus state.
 	// +optional
 	Error *string `json:"error,omitempty"`
+
+	// +optional
+	HeightRetainTime *metav1.Duration `json:"heightRetainTime,omitempty"`
 }
 
 type FullNodeSnapshotStatus struct {

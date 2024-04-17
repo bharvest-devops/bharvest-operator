@@ -2,7 +2,6 @@ package fullnode
 
 import (
 	"context"
-
 	cosmosv1 "github.com/bharvest-devops/cosmos-operator/api/v1"
 	"github.com/bharvest-devops/cosmos-operator/internal/cosmos"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -32,7 +31,10 @@ func SyncInfoStatus(
 	coll := collector.Collect(ctx, client.ObjectKeyFromObject(crd))
 
 	for _, item := range coll {
-		var stat cosmosv1.SyncInfoPodStatus
+		var (
+			stat           cosmosv1.SyncInfoPodStatus
+			retainDuration metav1.Duration
+		)
 		podName := item.GetPod().Name
 		stat.Timestamp = metav1.NewTime(item.Timestamp())
 		comet, err := item.GetStatus()
@@ -43,6 +45,18 @@ func SyncInfoStatus(
 		}
 		stat.Height = ptr(comet.LatestBlockHeight())
 		stat.InSync = ptr(!comet.Result.SyncInfo.CatchingUp)
+
+		beforeSyncInfo := crd.Status.SyncInfo[podName]
+		if beforeSyncInfo != nil && beforeSyncInfo.Height != nil && stat.Height != nil && *beforeSyncInfo.Height == *stat.Height {
+			retainDuration = metav1.Duration{
+				Duration: beforeSyncInfo.HeightRetainTime.Duration + stat.Timestamp.Sub(beforeSyncInfo.Timestamp.Time),
+			}
+			stat.HeightRetainTime = &retainDuration
+		} else {
+			retainDuration = metav1.Duration{Duration: 0}
+			stat.HeightRetainTime = &retainDuration
+		}
+
 		status[podName] = &stat
 	}
 

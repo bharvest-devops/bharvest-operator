@@ -2,6 +2,7 @@ package fullnode
 
 import (
 	"context"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"time"
 
 	cosmosv1 "github.com/bharvest-devops/cosmos-operator/api/v1"
@@ -30,14 +31,29 @@ func NewDriftDetection(collector StatusCollector) DriftDetection {
 
 // LaggingPods returns pods that are lagging behind the latest block height.
 func (d DriftDetection) LaggingPods(ctx context.Context, crd *cosmosv1.CosmosFullNode) []*corev1.Pod {
+	var lagging []*corev1.Pod
 	synced := d.collector.Collect(ctx, client.ObjectKeyFromObject(crd)).Synced()
+
+	lagging = lo.FilterMap(synced, func(item cosmos.StatusItem, _ int) (*corev1.Pod, bool) {
+		itemSyncInfo := crd.Status.SyncInfo[item.GetPod().Name]
+		thresholdTime := crd.Spec.SelfHeal.HeightDriftMitigation.ThresholdTime.Duration
+		if itemSyncInfo != nil && itemSyncInfo.HeightRetainTime != nil && thresholdTime != new(metav1.Duration).Duration {
+			isLagging := itemSyncInfo.HeightRetainTime.Duration >= thresholdTime
+			return item.GetPod(), isLagging
+		} else {
+			return item.GetPod(), false
+		}
+	})
+	if len(lagging) > 0 {
+		return lagging
+	}
 
 	maxHeight := lo.MaxBy(synced, func(a cosmos.StatusItem, b cosmos.StatusItem) bool {
 		return a.Status.LatestBlockHeight() > b.Status.LatestBlockHeight()
 	}).Status.LatestBlockHeight()
 
-	thresh := uint64(crd.Spec.SelfHeal.HeightDriftMitigation.Threshold)
-	lagging := lo.FilterMap(synced, func(item cosmos.StatusItem, _ int) (*corev1.Pod, bool) {
+	thresh := uint64(crd.Spec.SelfHeal.HeightDriftMitigation.ThresholdHeight)
+	lagging = lo.FilterMap(synced, func(item cosmos.StatusItem, _ int) (*corev1.Pod, bool) {
 		isLagging := maxHeight-item.Status.LatestBlockHeight() >= thresh
 		return item.GetPod(), isLagging
 	})
