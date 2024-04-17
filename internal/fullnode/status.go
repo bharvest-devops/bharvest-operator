@@ -36,7 +36,9 @@ func SyncInfoStatus(
 			retainDuration metav1.Duration
 		)
 		podName := item.GetPod().Name
+
 		stat.Timestamp = metav1.NewTime(item.Timestamp())
+
 		comet, err := item.GetStatus()
 		if err != nil {
 			stat.Error = ptr(err.Error())
@@ -46,17 +48,19 @@ func SyncInfoStatus(
 		stat.Height = ptr(comet.LatestBlockHeight())
 		stat.InSync = ptr(!comet.Result.SyncInfo.CatchingUp)
 
-		beforeSyncInfo := crd.Status.SyncInfo[podName]
-		if beforeSyncInfo != nil && beforeSyncInfo.Height != nil && stat.Height != nil && *beforeSyncInfo.Height == *stat.Height {
-			retainDuration = metav1.Duration{
-				Duration: beforeSyncInfo.HeightRetainTime.Duration + stat.Timestamp.Sub(beforeSyncInfo.Timestamp.Time),
-			}
-			stat.HeightRetainTime = &retainDuration
+		beforeStat := crd.Status.SyncInfo[podName]
+
+		if beforeStat != nil && beforeStat.Height != nil && stat.Height != nil && *beforeStat.Height == *stat.Height {
+			stat.LastBlockTimestamp = beforeStat.LastBlockTimestamp
 		} else {
-			retainDuration = metav1.Duration{Duration: 0}
-			stat.HeightRetainTime = &retainDuration
+			stat.LastBlockTimestamp = stat.Timestamp
 		}
 
+		retainDuration = metav1.Duration{
+			Duration: stat.Timestamp.Sub(stat.LastBlockTimestamp.Time),
+		}
+
+		stat.HeightRetainTime = &retainDuration
 		status[podName] = &stat
 	}
 

@@ -149,6 +149,10 @@ type FullNodeStatus struct {
 type SyncInfoPodStatus struct {
 	// When consensus information was fetched.
 	Timestamp metav1.Time `json:"timestamp"`
+
+	// Time which fetched when last block updated
+	LastBlockTimestamp metav1.Time `json:"lastBlockTimestamp,omitempty"`
+
 	// Latest height if no error encountered.
 	// +optional
 	Height *uint64 `json:"height,omitempty"`
