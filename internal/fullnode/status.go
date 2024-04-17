@@ -47,7 +47,7 @@ func SyncInfoStatus(
 		stat.InSync = ptr(!comet.Result.SyncInfo.CatchingUp)
 
 		beforeSyncInfo := crd.Status.SyncInfo[podName]
-		if beforeSyncInfo != nil && *beforeSyncInfo.Height == *stat.Height {
+		if beforeSyncInfo != nil && beforeSyncInfo.Height != nil && stat.Height != nil && *beforeSyncInfo.Height == *stat.Height {
 			retainDuration = metav1.Duration{
 				Duration: beforeSyncInfo.HeightRetainTime.Duration + stat.Timestamp.Sub(beforeSyncInfo.Timestamp.Time),
 			}
