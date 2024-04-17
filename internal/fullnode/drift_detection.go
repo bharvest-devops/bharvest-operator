@@ -37,7 +37,8 @@ func (d DriftDetection) LaggingPods(ctx context.Context, crd *cosmosv1.CosmosFul
 	lagging = lo.FilterMap(synced, func(item cosmos.StatusItem, _ int) (*corev1.Pod, bool) {
 		itemSyncInfo := crd.Status.SyncInfo[item.GetPod().Name]
 		thresholdTime := crd.Spec.SelfHeal.HeightDriftMitigation.ThresholdTime.Duration
-		if itemSyncInfo != nil && itemSyncInfo.HeightRetainTime != nil && thresholdTime != new(metav1.Duration).Duration {
+
+		if thresholdTime != new(metav1.Duration).Duration && itemSyncInfo != nil && itemSyncInfo.HeightRetainTime != nil {
 			isLagging := itemSyncInfo.HeightRetainTime.Duration >= thresholdTime
 			return item.GetPod(), isLagging
 		} else {
