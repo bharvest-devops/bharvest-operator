@@ -863,7 +863,7 @@ type ServiceSpec struct {
 	// and set as own address combined with node IP and nodePort.
 	//
 	// +optional
-	P2PServiceSpecs []P2PServiceSpec `json:"p2pServiceSpecs"`
+	P2PServiceSpecs []P2PServiceSpec `json:"p2pServiceSpecOverrides"`
 
 	// Overrides for the single RPC service.
 	// +optional
@@ -888,6 +888,7 @@ type P2PServiceSpec struct {
 	ExternalTrafficPolicy *corev1.ServiceExternalTrafficPolicyType `json:"externalTrafficPolicy"`
 
 	// The port that will be exposed by this service.
+	// +optional
 	Port int32 `json:"port"`
 
 	// The port on each node on which this service is exposed when type is
@@ -911,7 +912,7 @@ type P2PServiceSpec struct {
 
 	// The IP protocol for this port. Supports "TCP", "UDP", and "SCTP".
 	// Default is TCP.
-	// +default="TCP"
+	// +kubebuilder:default:="TCP"
 	// +optional
 	Protocol corev1.Protocol `json:"protocol,omitempty"`
 }
