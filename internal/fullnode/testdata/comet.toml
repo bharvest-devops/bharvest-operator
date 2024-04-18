@@ -1,5 +1,7 @@
 log_format = "json"
+log-format = "json"
 log_level = "debug"
+log-level = "debug"
 moniker = "osmosis-0"
 
 [blocksync]
@@ -12,16 +14,22 @@ moniker = "osmosis-0"
 
 [p2p]
 persistent_peers = "peer1@1.2.2.2:789,peer2@2.2.2.2:789,peer3@3.2.2.2:789"
+persistent-peers = "peer1@1.2.2.2:789,peer2@2.2.2.2:789,peer3@3.2.2.2:789"
 private_peer_ids = ""
+private-peer-ids = ""
 seeds = "seed1@1.1.1.1:456,seed2@1.1.1.1:456"
 unconditional_peer_ids = ""
+unconditional-peer-ids = ""
 upnp = true
 
 [rpc]
 cors_allowed_origins = ["*"]
+cors-allowed-origins = ["*"]
 
 [statesync]
 
 [storage]
 
 [tx_index]
+
+[tx-index]

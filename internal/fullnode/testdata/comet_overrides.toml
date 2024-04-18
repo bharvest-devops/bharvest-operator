@@ -1,6 +1,8 @@
 log_format = "json"
+log-format = "json"
 moniker = "osmosis-0"
 new_base = "new base value"
+new-base = "new base value"
 
 [blocksync]
 
@@ -11,6 +13,9 @@ new_base = "new base value"
 [mempool]
 
 [new_section]
+test = "value"
+
+[new-section]
 test = "value"
 
 [p2p]
@@ -24,10 +29,16 @@ private_peer_ids = ""
 seeds = "override@seed"
 unconditional_peer_ids = ""
 upnp = true
+max-num-inbound-peers = 5
+max-num-outbound-peers = 15
+new-field = "p2p"
+persistent-peers = "peer1@1.2.2.2:789,peer2@2.2.2.2:789,peer3@3.2.2.2:789"
+private-peer-ids = ""
+unconditional-peer-ids = ""
 
 [rpc]
-cors-allowed-origins = ["override"]
 cors_allowed_origins = ["override"]
+cors-allowed-origins = ["override"]
 
 [statesync]
 
@@ -35,3 +46,7 @@ cors_allowed_origins = ["override"]
 
 [tx_index]
 indexer = "null"
+
+[tx-index]
+indexer = "null"
+

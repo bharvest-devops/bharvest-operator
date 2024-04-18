@@ -10,11 +10,16 @@ moniker = "osmosis-0"
 
 [p2p]
 max_num_inbound_peers = 5
+max-num-inbound-peers = 5
 max_num_outbound_peers = 15
+max-num-outbound-peers = 15
 persistent_peers = "peer1@1.2.2.2:789,peer2@2.2.2.2:789,peer3@3.2.2.2:789"
+persistent-peers = "peer1@1.2.2.2:789,peer2@2.2.2.2:789,peer3@3.2.2.2:789"
 private_peer_ids = ""
+private-peer-ids = ""
 seeds = "seed1@1.1.1.1:456,seed2@1.1.1.1:456"
 unconditional_peer_ids = ""
+unconditional-peer-ids = ""
 upnp = true
 
 [rpc]
@@ -24,3 +29,5 @@ upnp = true
 [storage]
 
 [tx_index]
+
+[tx-index]
