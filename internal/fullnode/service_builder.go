@@ -160,6 +160,7 @@ func rpcService(crd *cosmosv1.CosmosFullNode) *corev1.Service {
 				servicePortList[i] = p
 				servicePortList[i].Name = n
 			}
+			break
 		}
 	}
 
