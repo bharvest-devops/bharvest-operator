@@ -151,6 +151,11 @@ func rpcService(crd *cosmosv1.CosmosFullNode) *corev1.Service {
 	for i := 0; i < len(servicePortList); i++ {
 		n := servicePortList[i].Name
 		for _, p := range rpcSpec.Ports {
+
+			// Prevents error occurrence from wrong request when not configured nodePort but entered nodePort
+			if *rpcSpec.Type != corev1.ServiceTypeNodePort && p.NodePort != *new(int32) {
+				p.NodePort = *new(int32)
+			}
 			if p.Name == n {
 				servicePortList[i] = p
 				servicePortList[i].Name = n
