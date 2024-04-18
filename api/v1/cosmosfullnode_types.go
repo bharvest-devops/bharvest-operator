@@ -912,7 +912,7 @@ type P2PServiceSpec struct {
 
 	// The IP protocol for this port. Supports "TCP", "UDP", and "SCTP".
 	// Default is TCP.
-	// +kubebuilder:default:="TCP"
+	// +default:="TCP"
 	// +optional
 	Protocol corev1.Protocol `json:"protocol,omitempty"`
 }
