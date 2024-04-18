@@ -6,6 +6,7 @@ import (
 	"fmt"
 	blockchain_toml "github.com/bharvest-devops/blockchain-toml"
 	"github.com/pelletier/go-toml"
+	"github.com/stoewer/go-strcase"
 	"strings"
 
 	cosmosv1 "github.com/bharvest-devops/cosmos-operator/api/v1"
@@ -112,6 +113,13 @@ func BuildConfigMaps(crd *cosmosv1.CosmosFullNode, peers Peers) ([]diff.Resource
 			if err != nil {
 				return nil, err
 			}
+
+			// For tendermint
+			configBytes, err = DuplicateWithKebabCase(configBytes)
+			if err != nil {
+				return nil, err
+			}
+
 			data[configOverlayFile] = string(configBytes)
 
 			app := getEmptyCosmosApp()
@@ -119,6 +127,7 @@ func BuildConfigMaps(crd *cosmosv1.CosmosFullNode, peers Peers) ([]diff.Resource
 			if err != nil {
 				return nil, err
 			}
+
 			data[appOverlayFile] = string(appTomlBytes)
 		}
 
@@ -136,6 +145,31 @@ func BuildConfigMaps(crd *cosmosv1.CosmosFullNode, peers Peers) ([]diff.Resource
 	}
 
 	return cms, nil
+}
+
+func DuplicateWithKebabCase(b []byte) ([]byte, error) {
+	var contentMap map[string]interface{}
+
+	err := toml.Unmarshal(b, &contentMap)
+	if err != nil {
+		return []byte{}, err
+	}
+	contentMap = makeKebabIntoChild(contentMap)
+
+	return toml.Marshal(contentMap)
+}
+
+func makeKebabIntoChild(contentMap map[string]interface{}) map[string]interface{} {
+	for key, value := range contentMap {
+		if convertedValue, ok := value.(map[string]interface{}); ok {
+			kebabChild := makeKebabIntoChild(convertedValue)
+			contentMap[key] = kebabChild
+			contentMap[strcase.KebabCase(key)] = kebabChild
+		} else {
+			contentMap[strcase.KebabCase(key)] = value
+		}
+	}
+	return contentMap
 }
 
 func commaDelimited(str ...*string) string {
