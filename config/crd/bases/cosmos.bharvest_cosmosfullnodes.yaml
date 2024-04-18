@@ -6054,12 +6054,12 @@ spec:
                     description: Take action when a pod's height falls behind the
                       max height of all pods AND still reports itself as in-sync.
                     properties:
-                      threshold:
+                      thresholdHeight:
                         description: If pod's height falls behind the max height of
                           all pods by this value or more AND the pod's RPC /status
                           endpoint reports itself as in-sync, the pod is deleted.
                           The CosmosFullNodeController creates a new pod to replace
-                          it. Pod deletion respects the CosmosFullNode.Spec.RolloutStrategy
+                          it Pod deletion respects the CosmosFullNode.Spec.RolloutStrategy
                           and will not delete more pods than set by the strategy to
                           prevent downtime. This workaround is necessary to mitigate
                           a bug in the Cosmos SDK and/or CometBFT where pods report
@@ -6070,8 +6070,10 @@ spec:
                         format: int32
                         minimum: 1
                         type: integer
+                      thresholdTime:
+                        type: string
                     required:
-                    - threshold
+                    - thresholdHeight
                     type: object
                   pvcAutoScale:
                     description: "Automatically increases PVC storage as they approach
@@ -6117,127 +6119,89 @@ spec:
                   Additionally, multiple p2p services are created for CometBFT peer
                   exchange.
                 properties:
-                  maxP2PExternalAddresses:
-                    description: Max number of external p2p services to create for
-                      CometBFT peer exchange. The public endpoint is set as the "p2p.external_address"
-                      in the config.toml. Controller creates p2p services for each
-                      pod so that every pod can peer with each other internally in
-                      the cluster. This setting allows you to control the number of
-                      p2p services exposed for peers outside of the cluster to use.
-                      If not set, defaults to 1.
-                    format: int32
-                    minimum: 0
-                    type: integer
-                  p2pTemplate:
-                    description: Overrides for all P2P services that need external
-                      addresses.
-                    properties:
-                      externalTrafficPolicy:
-                        description: 'Sets endpoint and routing behavior. See: https://kubernetes.io/docs/tasks/access-application-cluster/create-external-load-balancer/#caveats-and-limitations-when-preserving-source-ips
-                          If not set, defaults to "Cluster".'
-                        enum:
-                        - Cluster
-                        - Local
-                        type: string
-                      metadata:
-                        description: Metadata is a subset of k8s object metadata.
-                        properties:
-                          annotations:
-                            additionalProperties:
-                              type: string
-                            description: Annotations are added to a resource. If there
-                              is a collision between annotations the Operator creates,
-                              the Operator annotations take precedence.
-                            type: object
-                          labels:
-                            additionalProperties:
-                              type: string
-                            description: Labels are added to a resource. If there
-                              is a collision between labels the Operator creates,
-                              the Operator labels take precedence.
-                            type: object
-                        type: object
-                      ports:
-                        items:
-                          description: ServicePort contains information on service's
-                            port.
+                  p2pServiceSpecs:
+                    description: "Configuration of external p2p services for CometBFT
+                      peer exchange. By default, controller creates p2p services as
+                      \"ClusterIP\" for each pod so that every pod can peer with each
+                      other internally in the cluster. However, If you want to expose
+                      the service of each p2p, and allow outside peer could connect,
+                      you can configure this option. \n If you configure nodePort,
+                      the public endpoint set as the \"p2p.external_address\" in the
+                      config.toml will be automatically ignore and set as own address
+                      combined with node IP and nodePort."
+                    items:
+                      description: P2PServiceSpec overrides configuration of p2p service.
+                      properties:
+                        externalTrafficPolicy:
+                          description: 'Sets endpoint and routing behavior. See: https://kubernetes.io/docs/tasks/access-application-cluster/create-external-load-balancer/#caveats-and-limitations-when-preserving-source-ips
+                            If not set, defaults to "Local".'
+                          enum:
+                          - Cluster
+                          - Local
+                          type: string
+                        metadata:
+                          description: Metadata is a subset of k8s object metadata.
                           properties:
-                            appProtocol:
-                              description: "The application protocol for this port.
-                                This is used as a hint for implementations to offer
-                                richer behavior for protocols that they understand.
-                                This field follows standard Kubernetes label syntax.
-                                Valid values are either: \n * Un-prefixed protocol
-                                names - reserved for IANA standard service names (as
-                                per RFC-6335 and https://www.iana.org/assignments/service-names).
-                                \n * Kubernetes-defined prefixed names: * 'kubernetes.io/h2c'
-                                - HTTP/2 over cleartext as described in https://www.rfc-editor.org/rfc/rfc7540
-                                * 'kubernetes.io/ws'  - WebSocket over cleartext as
-                                described in https://www.rfc-editor.org/rfc/rfc6455
-                                * 'kubernetes.io/wss' - WebSocket over TLS as described
-                                in https://www.rfc-editor.org/rfc/rfc6455 \n * Other
-                                protocols should use implementation-defined prefixed
-                                names such as mycompany.com/my-custom-protocol."
-                              type: string
-                            name:
-                              description: The name of this port within the service.
-                                This must be a DNS_LABEL. All ports within a ServiceSpec
-                                must have unique names. When considering the endpoints
-                                for a Service, this must match the 'name' field in
-                                the EndpointPort. Optional if only one ServicePort
-                                is defined on this service.
-                              type: string
-                            nodePort:
-                              description: 'The port on each node on which this service
-                                is exposed when type is NodePort or LoadBalancer.  Usually
-                                assigned by the system. If a value is specified, in-range,
-                                and not in use it will be used, otherwise the operation
-                                will fail.  If not specified, a port will be allocated
-                                if this Service requires one.  If this field is specified
-                                when creating a Service which does not need it, creation
-                                will fail. This field will be wiped when updating
-                                a Service to no longer need it (e.g. changing type
-                                from NodePort to ClusterIP). More info: https://kubernetes.io/docs/concepts/services-networking/service/#type-nodeport'
-                              format: int32
-                              type: integer
-                            port:
-                              description: The port that will be exposed by this service.
-                              format: int32
-                              type: integer
-                            protocol:
-                              default: TCP
-                              description: The IP protocol for this port. Supports
-                                "TCP", "UDP", and "SCTP". Default is TCP.
-                              type: string
-                            targetPort:
-                              anyOf:
-                              - type: integer
-                              - type: string
-                              description: 'Number or name of the port to access on
-                                the pods targeted by the service. Number must be in
-                                the range 1 to 65535. Name must be an IANA_SVC_NAME.
-                                If this is a string, it will be looked up as a named
-                                port in the target Pod''s container ports. If this
-                                is not specified, the value of the ''port'' field
-                                is used (an identity map). This field is ignored for
-                                services with clusterIP=None, and should be omitted
-                                or set equal to the ''port'' field. More info: https://kubernetes.io/docs/concepts/services-networking/service/#defining-a-service'
-                              x-kubernetes-int-or-string: true
-                          required:
-                          - port
+                            annotations:
+                              additionalProperties:
+                                type: string
+                              description: Annotations are added to a resource. If
+                                there is a collision between annotations the Operator
+                                creates, the Operator annotations take precedence.
+                              type: object
+                            labels:
+                              additionalProperties:
+                                type: string
+                              description: Labels are added to a resource. If there
+                                is a collision between labels the Operator creates,
+                                the Operator labels take precedence.
+                              type: object
                           type: object
-                        type: array
-                      type:
-                        default: ClusterIP
-                        description: Describes ingress methods for a service. If not
-                          set, defaults to "ClusterIP".
-                        enum:
-                        - ClusterIP
-                        - NodePort
-                        - LoadBalancer
-                        - ExternalName
-                        type: string
-                    type: object
+                        nodePort:
+                          description: 'The port on each node on which this service
+                            is exposed when type is NodePort or LoadBalancer.  Usually
+                            assigned by the system. If a value is specified, in-range,
+                            and not in use it will be used, otherwise the operation
+                            will fail.  If not specified, a port will be allocated
+                            if this Service requires one.  If this field is specified
+                            when creating a Service which does not need it, creation
+                            will fail. This field will be wiped when updating a Service
+                            to no longer need it (e.g. changing type from NodePort
+                            to ClusterIP). More info: https://kubernetes.io/docs/concepts/services-networking/service/#type-nodeport'
+                          format: int32
+                          type: integer
+                        podIdx:
+                          description: Index of pod that you'll associate with service.
+                            If name of pod is "cosmos-full-2-0", idx should be 0.
+                          format: int32
+                          minimum: 0
+                          type: integer
+                        port:
+                          description: The port that will be exposed by this service.
+                          format: int32
+                          type: integer
+                        protocol:
+                          allOf:
+                          - default: TCP
+                          - default: TCP
+                          description: The IP protocol for this port. Supports "TCP",
+                            "UDP", and "SCTP". Default is TCP.
+                          type: string
+                        type:
+                          default: ClusterIP
+                          description: Describes ingress methods for a service. If
+                            not set, defaults to "ClusterIP".
+                          enum:
+                          - ClusterIP
+                          - NodePort
+                          - LoadBalancer
+                          - ExternalName
+                          type: string
+                      required:
+                      - podIdx
+                      - port
+                      type: object
+                    type: array
                   rpcTemplate:
                     description: Overrides for the single RPC service.
                     properties:
@@ -6635,10 +6599,16 @@ spec:
                       description: Latest height if no error encountered.
                       format: int64
                       type: integer
+                    heightRetainTime:
+                      type: string
                     inSync:
                       description: If the pod reports itself as in sync with chain
                         tip.
                       type: boolean
+                    lastBlockTimestamp:
+                      description: Time which fetched when last block updated
+                      format: date-time
+                      type: string
                     timestamp:
                       description: When consensus information was fetched.
                       format: date-time
