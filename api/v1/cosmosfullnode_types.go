@@ -863,14 +863,17 @@ type ServiceSpec struct {
 	// and set as own address combined with node IP and nodePort.
 	//
 	// +optional
-	P2PTemplate []P2PServiceSpec `json:"p2pTemplate"`
+	P2PServiceSpecs []P2PServiceSpec `json:"p2pServiceSpecs"`
 
 	// Overrides for the single RPC service.
 	// +optional
 	RPCTemplate ServiceOverridesSpec `json:"rpcTemplate"`
 }
 
+// P2PServiceSpec overrides configuration of p2p service.
 type P2PServiceSpec struct {
+	// +optional
+	Metadata Metadata `json:"metadata"`
 
 	// Index of pod that you'll associate with service.
 	// If name of pod is "cosmos-full-2-0", idx should be 0.
@@ -879,7 +882,7 @@ type P2PServiceSpec struct {
 
 	// Sets endpoint and routing behavior.
 	// See: https://kubernetes.io/docs/tasks/access-application-cluster/create-external-load-balancer/#caveats-and-limitations-when-preserving-source-ips
-	// If not set, defaults to "Cluster".
+	// If not set, defaults to "Local".
 	// +kubebuilder:validation:Enum:=Cluster;Local
 	// +optional
 	ExternalTrafficPolicy *corev1.ServiceExternalTrafficPolicyType `json:"externalTrafficPolicy"`
