@@ -32,8 +32,7 @@ func SyncInfoStatus(
 
 	for _, item := range coll {
 		var (
-			stat           cosmosv1.SyncInfoPodStatus
-			retainDuration metav1.Duration
+			stat cosmosv1.SyncInfoPodStatus
 		)
 		podName := item.GetPod().Name
 
@@ -50,13 +49,17 @@ func SyncInfoStatus(
 
 		beforeStat := crd.Status.SyncInfo[podName]
 
-		if beforeStat != nil && beforeStat.Height != nil && stat.Height != nil && *beforeStat.Height == *stat.Height {
+		if beforeStat != nil &&
+			beforeStat.Height != nil &&
+			stat.Height != nil &&
+			*beforeStat.Height == *stat.Height &&
+			beforeStat.LastBlockTimestamp != *new(metav1.Time) {
 			stat.LastBlockTimestamp = beforeStat.LastBlockTimestamp
 		} else {
 			stat.LastBlockTimestamp = stat.Timestamp
 		}
 
-		retainDuration = metav1.Duration{
+		retainDuration := metav1.Duration{
 			Duration: stat.Timestamp.Sub(stat.LastBlockTimestamp.Time),
 		}
 
