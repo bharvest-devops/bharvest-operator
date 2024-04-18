@@ -2,6 +2,7 @@ package fullnode
 
 import (
 	"context"
+	v1 "github.com/bharvest-devops/cosmos-operator/api/v1"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -21,7 +22,14 @@ func TestServiceControl_Reconcile(t *testing.T) {
 		crd := defaultCRD()
 		crd.Namespace = "test"
 		crd.Spec.Replicas = 3
-		crd.Spec.Service.MaxP2PExternalAddresses = ptr(int32(2)) // Causes 1 p2p service to be created.
+		crd.Spec.Service.P2PServiceSpecs = []v1.P2PServiceSpec{
+			{
+				PodIdx: ptr(uint32(0)),
+			},
+			{
+				PodIdx: ptr(uint32(1)),
+			},
+		}
 
 		var mClient mockSvcClient
 		mClient.ObjectList = corev1.ServiceList{Items: []corev1.Service{
