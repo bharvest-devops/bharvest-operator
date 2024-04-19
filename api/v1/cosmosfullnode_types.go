@@ -464,11 +464,11 @@ type ChainSpec struct {
 	// CometBFT (formerly Tendermint) configuration applied to config.toml.
 	// Although optional, it's highly recommended you configure this field.
 	// +optional
-	Comet *CometConfig `json:"config"`
+	CometBFT *CometBFTConfig `json:"config"`
 
 	// CosmosSDK configuration applied to app.toml.
 	// +optional
-	CosmosSDK *SDKAppConfig `json:"cosmos"`
+	CosmosSDK *SDKAppConfig `json:"app"`
 
 	// Namada configuration applied to $CHAIN_ID/config.toml.
 	// +optional
@@ -574,8 +574,8 @@ type ChainVersion struct {
 	SetHaltHeight bool `json:"setHaltHeight,omitempty"`
 }
 
-// CometConfig configures the config.toml.
-type CometConfig struct {
+// CometBFTConfig configures the config.toml.
+type CometBFTConfig struct {
 
 	// RPC configuration for your config.toml
 	// +optional
@@ -609,7 +609,7 @@ type CometConfig struct {
 	TomlOverrides *string `json:"tomlOverrides"`
 }
 
-func (c *CometConfig) ToCosmosConfig() blockchain_toml.CosmosConfigFile {
+func (c *CometBFTConfig) ToCosmosConfig() blockchain_toml.CosmosConfigFile {
 	config := blockchain_toml.CosmosConfigFile{}
 	if c.RPC != nil {
 		config.RPC = blockchain_toml.CosmosRPC{
@@ -672,7 +672,7 @@ func (c *CometConfig) ToCosmosConfig() blockchain_toml.CosmosConfigFile {
 	return config
 }
 
-func (c *CometConfig) ToNamadaComet() blockchain_toml.NamadaCometbft {
+func (c *CometBFTConfig) ToNamadaComet() blockchain_toml.NamadaCometbft {
 	cometbft := blockchain_toml.NamadaCometbft{}
 	if c.RPC != nil {
 		cometbft.RPC = blockchain_toml.NamadaRPC{

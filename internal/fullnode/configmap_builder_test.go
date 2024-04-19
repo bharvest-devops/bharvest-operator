@@ -113,7 +113,7 @@ func TestBuildConfigMaps(t *testing.T) {
 			PersistentPeers: &persistentPeers,
 			Seeds:           &seeds,
 		}
-		cometConfig := cosmosv1.CometConfig{
+		cometConfig := cosmosv1.CometBFTConfig{
 			P2P: &cosmosP2P,
 		}
 		crd.Spec.ChainSpec.Comet = &cometConfig
@@ -307,11 +307,11 @@ func TestBuildConfigMaps(t *testing.T) {
 
 			require.Equal(t, 3, len(cms))
 
-			var decoded cosmosv1.CometConfig
+			var decoded cosmosv1.CometBFTConfig
 			_, err = toml.Decode(cms[0].Object().Data["config-overlay.toml"], &decoded)
 			require.NoError(t, err)
 			require.Equal(t, "1.1.1.1:26657", *decoded.P2P.ExternalAddress)
-			decoded = cosmosv1.CometConfig{}
+			decoded = cosmosv1.CometBFTConfig{}
 
 			_, err = toml.Decode(cms[1].Object().Data["config-overlay.toml"], &decoded)
 			require.NoError(t, err)
@@ -321,7 +321,7 @@ func TestBuildConfigMaps(t *testing.T) {
 			tmpP2P := cosmosv1.P2P{
 				ExternalAddress: &empty,
 			}
-			decoded = cosmosv1.CometConfig{
+			decoded = cosmosv1.CometBFTConfig{
 				P2P: &tmpP2P,
 			}
 
@@ -467,7 +467,7 @@ func TestBuildConfigMaps(t *testing.T) {
 	})
 
 	test.HasTypeLabel(t, func(crd cosmosv1.CosmosFullNode) []map[string]string {
-		cometConfig := cosmosv1.CometConfig{}
+		cometConfig := cosmosv1.CometBFTConfig{}
 		crd.Spec.ChainSpec.Comet = &cometConfig
 		cosmosAppConfig := cosmosv1.SDKAppConfig{}
 		crd.Spec.ChainSpec.CosmosSDK = &cosmosAppConfig

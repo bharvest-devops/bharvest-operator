@@ -107,7 +107,7 @@ func TestBuildPods(t *testing.T) {
 			overridePod   = "agoric-5"
 		)
 
-		cometConfig := cosmosv1.CometConfig{}
+		cometConfig := cosmosv1.CometBFTConfig{}
 		appConfig := cosmosv1.SDKAppConfig{}
 		crd := &cosmosv1.CosmosFullNode{
 			ObjectMeta: metav1.ObjectMeta{
@@ -150,7 +150,7 @@ func TestBuildPods(t *testing.T) {
 	})
 
 	t.Run("scheduled volume snapshot pod candidate", func(t *testing.T) {
-		cometConfig := cosmosv1.CometConfig{}
+		cometConfig := cosmosv1.CometBFTConfig{}
 		appConfig := cosmosv1.SDKAppConfig{}
 		crd := &cosmosv1.CosmosFullNode{
 			ObjectMeta: metav1.ObjectMeta{

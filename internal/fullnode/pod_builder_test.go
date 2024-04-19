@@ -16,7 +16,7 @@ import (
 )
 
 func defaultCRD() cosmosv1.CosmosFullNode {
-	cometConfig := cosmosv1.CometConfig{}
+	cometConfig := cosmosv1.CometBFTConfig{}
 	appConfig := cosmosv1.SDKAppConfig{}
 	return cosmosv1.CosmosFullNode{
 		ObjectMeta: metav1.ObjectMeta{
@@ -641,7 +641,7 @@ gaiad start --home /home/operator/cosmos`
 	})
 
 	test.HasTypeLabel(t, func(crd cosmosv1.CosmosFullNode) []map[string]string {
-		cometConfig := cosmosv1.CometConfig{}
+		cometConfig := cosmosv1.CometBFTConfig{}
 		appConfig := cosmosv1.SDKAppConfig{}
 		crd.Spec.ChainSpec.Comet = &cometConfig
 		crd.Spec.ChainSpec.CosmosSDK = &appConfig

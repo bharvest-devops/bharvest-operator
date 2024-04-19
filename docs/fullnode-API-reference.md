@@ -46,7 +46,7 @@ _Appears in:_
 | `network` _string_ | The network environment. Typically, mainnet, testnet, devnet, etc. |
 | `binary` _string_ | Binary name which runs commands. E.g. gaiad, junod, osmosisd |
 | `homeDir` _string_ | The chain's home directory is where the chain's data and config is stored.<br /><br />This should be a single folder. E.g. .gaia, .dydxprotocol, .osmosisd, etc.<br /><br />Set via --home flag when running the binary.<br /><br />If empty, defaults to "cosmos" which translates to `chain start --home /home/operator/cosmos`.<br /><br />Historically, several chains do not respect the --home and save data outside --home which crashes the pods.<br /><br />Therefore, this option was introduced to mitigate those edge cases, so that you can specify the home directory<br /><br />to match the chain's default home dir. |
-| `config` _[CometConfig](#cometconfig)_ | CometBFT (formerly Tendermint) configuration applied to config.toml.<br /><br />Although optional, it's highly recommended you configure this field. |
+| `config` _[CometBFTConfig](#cometconfig)_ | CometBFT (formerly Tendermint) configuration applied to config.toml.<br /><br />Although optional, it's highly recommended you configure this field. |
 | `cosmos` _[SDKAppConfig](#sdkappconfig)_ | CosmosSDK configuration applied to app.toml. |
 | `namada` _[NamadaConfig](#namadaconfig)_ | Namada configuration applied to $CHAIN_ID/config.toml. |
 | `logLevel` _string_ | One of trace\|debug\|info\|warn\|error\|fatal\|panic.<br /><br />If not set, defaults to info. |
@@ -78,11 +78,11 @@ _Appears in:_
 | `setHaltHeight` _boolean_ | Determines if the node should forcefully halt at the upgrade height. |
 
 
-#### CometConfig
+#### CometBFTConfig
 
 
 
-CometConfig configures the config.toml.
+CometBFTConfig configures the config.toml.
 
 _Appears in:_
 - [ChainSpec](#chainspec)
@@ -106,7 +106,7 @@ _Appears in:_
 
 
 _Appears in:_
-- [CometConfig](#cometconfig)
+- [CometBFTConfig](#cometconfig)
 
 | Field | Description |
 | --- | --- |
@@ -309,7 +309,7 @@ _Appears in:_
 
 
 _Appears in:_
-- [CometConfig](#cometconfig)
+- [CometBFTConfig](#cometconfig)
 
 | Field | Description |
 | --- | --- |
@@ -375,7 +375,7 @@ _Appears in:_
 
 
 _Appears in:_
-- [CometConfig](#cometconfig)
+- [CometBFTConfig](#cometconfig)
 
 | Field | Description |
 | --- | --- |
@@ -509,7 +509,7 @@ _Appears in:_
 
 
 _Appears in:_
-- [CometConfig](#cometconfig)
+- [CometBFTConfig](#cometconfig)
 
 | Field | Description |
 | --- | --- |
@@ -638,7 +638,7 @@ _Appears in:_
 
 
 _Appears in:_
-- [CometConfig](#cometconfig)
+- [CometBFTConfig](#cometconfig)
 
 | Field | Description |
 | --- | --- |
@@ -658,7 +658,7 @@ _Appears in:_
 
 
 _Appears in:_
-- [CometConfig](#cometconfig)
+- [CometBFTConfig](#cometconfig)
 
 | Field | Description |
 | --- | --- |
@@ -689,7 +689,7 @@ _Appears in:_
 
 
 _Appears in:_
-- [CometConfig](#cometconfig)
+- [CometBFTConfig](#cometconfig)
 
 | Field | Description |
 | --- | --- |

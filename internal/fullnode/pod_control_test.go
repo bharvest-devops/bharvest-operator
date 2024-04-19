@@ -211,7 +211,7 @@ func TestPodControl_Reconcile(t *testing.T) {
 		crd.Spec.RolloutStrategy = cosmosv1.RolloutStrategy{
 			MaxUnavailable: ptr(intstr.FromInt(2)),
 		}
-		cometConfig := cosmosv1.CometConfig{}
+		cometConfig := cosmosv1.CometBFTConfig{}
 		appConfig := cosmosv1.SDKAppConfig{}
 		crd.Spec.ChainSpec = cosmosv1.ChainSpec{
 			Versions: []cosmosv1.ChainVersion{
@@ -407,7 +407,7 @@ func TestPodControl_Reconcile(t *testing.T) {
 		crd.Spec.RolloutStrategy = cosmosv1.RolloutStrategy{
 			MaxUnavailable: ptr(intstr.FromInt(2)),
 		}
-		cometConfig := cosmosv1.CometConfig{}
+		cometConfig := cosmosv1.CometBFTConfig{}
 		appConfig := cosmosv1.SDKAppConfig{}
 		crd.Spec.ChainSpec = cosmosv1.ChainSpec{
 			Versions: []cosmosv1.ChainVersion{
