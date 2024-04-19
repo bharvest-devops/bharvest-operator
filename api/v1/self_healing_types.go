@@ -66,6 +66,25 @@ type HeightDriftMitigationSpec struct {
 	// +kubebuilder:validation:Schemaless
 	// +optional
 	ThresholdTime metav1.Duration `json:"thresholdTime"`
+
+	// RegeneratePVC specifies if delete pvc according to pods' starting failure count.
+	// In most cases, unhealthy status involves invalid volume contents not only pod(computing resource); like containing appHash record.
+	//
+	// Through this field, you could regenerate pvc using spec.volumeClaimTemplate when the starting failure count of pod has over threshold.
+	// If not set, deletion of pvc will be no.
+	// +optional
+	RegeneratePVC *RegeneratePVCSpec `json:"regeneratePVC"`
+}
+
+type RegeneratePVCSpec struct {
+
+	// FailedCountCollectionDuration specifies how long self-healing controller will sum failure counts.
+	// You could set this like "1m", "10m".
+	// +kubebuilder:validator:Schemaless
+	FailedCountCollectionDuration metav1.Duration `json:"failedCountCollectionDuration"`
+
+	// ThresholdCount determines when regeneration logic will be run.
+	ThresholdCount uint32 `json:"thresholdCount"`
 }
 
 type SelfHealingStatus struct {
