@@ -76,6 +76,122 @@ spec:
                       Use AddrbookScript if the chain has an unconventional file format
                       or address book location.'
                     type: string
+                  app:
+                    description: CosmosSDK configuration applied to app.toml.
+                    properties:
+                      apiEnableUnsafeCORS:
+                        description: Defines if CORS should be enabled for the API
+                          (unsafe - use it at your own risk).
+                        type: boolean
+                      grpcWebEnableUnsafeCORS:
+                        description: Defines if CORS should be enabled for grpc-web
+                          (unsafe - use it at your own risk).
+                        type: boolean
+                      haltHeight:
+                        description: If set, block height at which to gracefully halt
+                          the chain and shutdown the node. Useful for testing or upgrades.
+                        format: int64
+                        minimum: 0
+                        type: integer
+                      minGasPrice:
+                        description: The minimum gas prices a validator is willing
+                          to accept for processing a transaction. A transaction's
+                          fees must meet the minimum of any denomination specified
+                          in this config (e.g. 0.25token1;0.0001token2).
+                        minLength: 1
+                        type: string
+                      pruning:
+                        description: Controls pruning settings. i.e. How much data
+                          to keep on disk. If not set, defaults to "default" pruning
+                          strategy.
+                        properties:
+                          interval:
+                            description: Bock height interval at which pruned heights
+                              are removed from disk (ignored if pruning is not 'custom').
+                              If not set, defaults to 0.
+                            format: int32
+                            type: integer
+                          keepEvery:
+                            description: Offset heights to keep on disk after 'keep-every'
+                              (ignored if pruning is not 'custom') Often, setting
+                              this to 0 is appropriate. If not set, defaults to 0.
+                            format: int32
+                            type: integer
+                          keepRecent:
+                            description: Number of recent block heights to keep on
+                              disk (ignored if pruning is not 'custom') If not set,
+                              defaults to 0.
+                            format: int32
+                            type: integer
+                          minRetainBlocks:
+                            description: "Defines the minimum block height offset
+                              from the current block being committed, such that all
+                              blocks past this offset are pruned from CometBFT. It
+                              is used as part of the process of determining the ResponseCommit.RetainHeight
+                              value during ABCI Commit. A value of 0 indicates that
+                              no blocks should be pruned. \n This configuration value
+                              is only responsible for pruning Comet blocks. It has
+                              no bearing on application state pruning which is determined
+                              by the \"pruning-*\" configurations. \n Note: CometBFT
+                              block pruning is dependent on this parameter in conjunction
+                              with the unbonding (safety threshold) period, state
+                              pruning and state sync snapshot parameters to determine
+                              the correct minimum value of ResponseCommit.RetainHeight.
+                              \n If not set, defaults to 0."
+                            format: int32
+                            type: integer
+                          strategy:
+                            default: default
+                            description: 'One of default|nothing|everything|custom.
+                              default: the last 100 states are kept in addition to
+                              every 500th state; pruning at 10 block intervals. nothing:
+                              all historic states will be saved, nothing will be deleted
+                              (i.e. archiving node). everything: all saved states
+                              will be deleted, storing only the current state; pruning
+                              at 10 block intervals. custom: allow pruning options
+                              to be manually specified through Interval, KeepEvery,
+                              KeepRecent.'
+                            enum:
+                            - default
+                            - nothing
+                            - everything
+                            - custom
+                            type: string
+                        required:
+                        - strategy
+                        type: object
+                      skipInvariants:
+                        description: Skip x/crisis invariants check on startup.
+                        type: boolean
+                      snapshotScript:
+                        description: 'Specify shell (sh) script commands to properly
+                          download and process a snapshot archive. Prefer SnapshotURL
+                          if possible. The available shell commands are from docker
+                          image ghcr.io/strangelove-ventures/infra-toolkit, including
+                          wget and curl. Save the file to env var $GENESIS_FILE. Takes
+                          precedence over SnapshotURL. Hint: Use "set -eux" in your
+                          script. Available env vars: $HOME: The user''s home directory.
+                          $CHAIN_HOME: The home directory for the chain, aka: --home
+                          flag $DATA_DIR: The directory for the database files.'
+                        type: string
+                      snapshotURL:
+                        description: 'URL for a snapshot archive to download from
+                          the internet. Unarchiving the snapshot populates the data
+                          directory. Although this field is optional, you will almost
+                          always want to set it. The operator detects and properly
+                          handles the following file extensions: .tar, .tar.gz, .tar.gzip,
+                          .tar.lz4 Use SnapshotScript if the snapshot archive is unconventional
+                          or requires special handling.'
+                        type: string
+                      tomlOverrides:
+                        description: 'Custom app config toml. Values entered here
+                          take precedence over all other configuration. Must be valid
+                          toml. Important: all keys must be "kebab-case" which differs
+                          from config.toml.'
+                        type: string
+                    required:
+                    - minGasPrice
+                    type: object
                   binary:
                     description: Binary name which runs commands. E.g. gaiad, junod,
                       osmosisd
@@ -256,122 +372,6 @@ spec:
                               you run. cosmos - "kv", namada - "null"
                             type: string
                         type: object
-                    type: object
-                  cosmos:
-                    description: CosmosSDK configuration applied to app.toml.
-                    properties:
-                      apiEnableUnsafeCORS:
-                        description: Defines if CORS should be enabled for the API
-                          (unsafe - use it at your own risk).
-                        type: boolean
-                      grpcWebEnableUnsafeCORS:
-                        description: Defines if CORS should be enabled for grpc-web
-                          (unsafe - use it at your own risk).
-                        type: boolean
-                      haltHeight:
-                        description: If set, block height at which to gracefully halt
-                          the chain and shutdown the node. Useful for testing or upgrades.
-                        format: int64
-                        minimum: 0
-                        type: integer
-                      minGasPrice:
-                        description: The minimum gas prices a validator is willing
-                          to accept for processing a transaction. A transaction's
-                          fees must meet the minimum of any denomination specified
-                          in this config (e.g. 0.25token1;0.0001token2).
-                        minLength: 1
-                        type: string
-                      pruning:
-                        description: Controls pruning settings. i.e. How much data
-                          to keep on disk. If not set, defaults to "default" pruning
-                          strategy.
-                        properties:
-                          interval:
-                            description: Bock height interval at which pruned heights
-                              are removed from disk (ignored if pruning is not 'custom').
-                              If not set, defaults to 0.
-                            format: int32
-                            type: integer
-                          keepEvery:
-                            description: Offset heights to keep on disk after 'keep-every'
-                              (ignored if pruning is not 'custom') Often, setting
-                              this to 0 is appropriate. If not set, defaults to 0.
-                            format: int32
-                            type: integer
-                          keepRecent:
-                            description: Number of recent block heights to keep on
-                              disk (ignored if pruning is not 'custom') If not set,
-                              defaults to 0.
-                            format: int32
-                            type: integer
-                          minRetainBlocks:
-                            description: "Defines the minimum block height offset
-                              from the current block being committed, such that all
-                              blocks past this offset are pruned from CometBFT. It
-                              is used as part of the process of determining the ResponseCommit.RetainHeight
-                              value during ABCI Commit. A value of 0 indicates that
-                              no blocks should be pruned. \n This configuration value
-                              is only responsible for pruning Comet blocks. It has
-                              no bearing on application state pruning which is determined
-                              by the \"pruning-*\" configurations. \n Note: CometBFT
-                              block pruning is dependent on this parameter in conjunction
-                              with the unbonding (safety threshold) period, state
-                              pruning and state sync snapshot parameters to determine
-                              the correct minimum value of ResponseCommit.RetainHeight.
-                              \n If not set, defaults to 0."
-                            format: int32
-                            type: integer
-                          strategy:
-                            default: default
-                            description: 'One of default|nothing|everything|custom.
-                              default: the last 100 states are kept in addition to
-                              every 500th state; pruning at 10 block intervals. nothing:
-                              all historic states will be saved, nothing will be deleted
-                              (i.e. archiving node). everything: all saved states
-                              will be deleted, storing only the current state; pruning
-                              at 10 block intervals. custom: allow pruning options
-                              to be manually specified through Interval, KeepEvery,
-                              KeepRecent.'
-                            enum:
-                            - default
-                            - nothing
-                            - everything
-                            - custom
-                            type: string
-                        required:
-                        - strategy
-                        type: object
-                      skipInvariants:
-                        description: Skip x/crisis invariants check on startup.
-                        type: boolean
-                      snapshotScript:
-                        description: 'Specify shell (sh) script commands to properly
-                          download and process a snapshot archive. Prefer SnapshotURL
-                          if possible. The available shell commands are from docker
-                          image ghcr.io/strangelove-ventures/infra-toolkit, including
-                          wget and curl. Save the file to env var $GENESIS_FILE. Takes
-                          precedence over SnapshotURL. Hint: Use "set -eux" in your
-                          script. Available env vars: $HOME: The user''s home directory.
-                          $CHAIN_HOME: The home directory for the chain, aka: --home
-                          flag $DATA_DIR: The directory for the database files.'
-                        type: string
-                      snapshotURL:
-                        description: 'URL for a snapshot archive to download from
-                          the internet. Unarchiving the snapshot populates the data
-                          directory. Although this field is optional, you will almost
-                          always want to set it. The operator detects and properly
-                          handles the following file extensions: .tar, .tar.gz, .tar.gzip,
-                          .tar.lz4 Use SnapshotScript if the snapshot archive is unconventional
-                          or requires special handling.'
-                        type: string
-                      tomlOverrides:
-                        description: 'Custom app config toml. Values entered here
-                          take precedence over all other configuration. Must be valid
-                          toml. Important: all keys must be "kebab-case" which differs
-                          from config.toml.'
-                        type: string
-                    required:
-                    - minGasPrice
                     type: object
                   databaseBackend:
                     description: 'DatabaseBackend must match in order to detect the
@@ -6053,6 +6053,29 @@ spec:
                     description: Take action when a pod's height falls behind the
                       max height of all pods AND still reports itself as in-sync.
                     properties:
+                      regeneratePVC:
+                        description: "RegeneratePVC specifies if delete pvc according
+                          to pods' starting failure count. In most cases, unhealthy
+                          status involves invalid volume contents not only pod(computing
+                          resource); like containing appHash record. \n Through this
+                          field, you could regenerate pvc using spec.volumeClaimTemplate
+                          when the starting failure count of pod has over threshold.
+                          If not set, deletion of pvc will be no."
+                        properties:
+                          failedCountCollectionDuration:
+                            description: FailedCountCollectionDuration specifies how
+                              long self-healing controller will sum failure counts.
+                              You could set this like "1m", "10m".
+                            type: string
+                          thresholdCount:
+                            description: ThresholdCount determines when regeneration
+                              logic will be run.
+                            format: int32
+                            type: integer
+                        required:
+                        - failedCountCollectionDuration
+                        - thresholdCount
+                        type: object
                       thresholdHeight:
                         description: If pod's height falls behind the max height of
                           all pods by this value or more AND the pod's RPC /status
@@ -6560,6 +6583,19 @@ spec:
               selfHealing:
                 description: Status set by the SelfHealing controller.
                 properties:
+                  podStartingFailure:
+                    additionalProperties:
+                      properties:
+                        failureTimes:
+                          items:
+                            format: date-time
+                            type: string
+                          type: array
+                      required:
+                      - failureTimes
+                      type: object
+                    description: Pod starting failure status.
+                    type: object
                   pvcAutoScaler:
                     additionalProperties:
                       properties:
