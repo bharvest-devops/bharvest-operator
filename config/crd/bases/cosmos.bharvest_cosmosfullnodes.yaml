@@ -90,7 +90,6 @@ spec:
                       to "cosmos".
                     enum:
                     - cosmos
-                    - cosmovisor
                     - namada
                     type: string
                   config:
@@ -6119,7 +6118,7 @@ spec:
                   Additionally, multiple p2p services are created for CometBFT peer
                   exchange.
                 properties:
-                  p2pServiceSpecs:
+                  p2pServiceSpecOverrides:
                     description: "Configuration of external p2p services for CometBFT
                       peer exchange. By default, controller creates p2p services as
                       \"ClusterIP\" for each pod so that every pod can peer with each
@@ -6181,9 +6180,7 @@ spec:
                           format: int32
                           type: integer
                         protocol:
-                          allOf:
-                          - default: TCP
-                          - default: TCP
+                          default: TCP
                           description: The IP protocol for this port. Supports "TCP",
                             "UDP", and "SCTP". Default is TCP.
                           type: string
@@ -6199,7 +6196,6 @@ spec:
                           type: string
                       required:
                       - podIdx
-                      - port
                       type: object
                     type: array
                   rpcTemplate:
