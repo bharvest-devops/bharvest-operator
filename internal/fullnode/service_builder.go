@@ -46,7 +46,11 @@ func BuildServices(crd *cosmosv1.CosmosFullNode) []diff.Resource[*corev1.Service
 			preserveMergeInto(svc.Labels, p2pServiceSpec.Metadata.Labels)
 			preserveMergeInto(svc.Annotations, p2pServiceSpec.Metadata.Annotations)
 			svc.Spec.Type = *valOrDefault(p2pServiceSpec.Type, ptr(corev1.ServiceTypeLoadBalancer))
-			svc.Spec.ExternalTrafficPolicy = *valOrDefault(p2pServiceSpec.ExternalTrafficPolicy, ptr(corev1.ServiceExternalTrafficPolicyTypeLocal))
+
+			// To set svc.Spec.ExternalTrafficPolicy, you should set type as NodePort, or LoadBalancer
+			if svc.Spec.Type == corev1.ServiceTypeLoadBalancer || svc.Spec.Type == corev1.ServiceTypeNodePort {
+				svc.Spec.ExternalTrafficPolicy = *valOrDefault(p2pServiceSpec.ExternalTrafficPolicy, ptr(corev1.ServiceExternalTrafficPolicyTypeLocal))
+			}
 		} else {
 			svc.Spec.Type = corev1.ServiceTypeClusterIP
 		}
