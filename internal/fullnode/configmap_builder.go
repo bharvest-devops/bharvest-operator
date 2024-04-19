@@ -197,7 +197,7 @@ func addCosmosConfigToml(config *blockchain_toml.CosmosConfigFile, crd *cosmosv1
 	)
 
 	spec := crd.Spec.ChainSpec
-	comet := spec.Comet
+	comet := spec.CometBFT
 
 	if comet != nil {
 		cosmosConfigFile = comet.ToCosmosConfig()
@@ -258,8 +258,8 @@ func addCosmosConfigToml(config *blockchain_toml.CosmosConfigFile, crd *cosmosv1
 	}
 
 	config.Moniker = &instance
-	if spec.Comet != nil && spec.Comet.TomlOverrides != nil {
-		return config.ExportMergeWithTomlOverrides([]byte(*spec.Comet.TomlOverrides))
+	if spec.CometBFT != nil && spec.CometBFT.TomlOverrides != nil {
+		return config.ExportMergeWithTomlOverrides([]byte(*spec.CometBFT.TomlOverrides))
 	}
 	return toml.Marshal(config)
 }
@@ -324,7 +324,7 @@ func addNamadaConfigToml(config *blockchain_toml.NamadaConfigFile, crd *cosmosv1
 	)
 
 	spec := crd.Spec.ChainSpec
-	comet := spec.Comet
+	comet := spec.CometBFT
 	if comet != nil {
 		namadaCometBFT = comet.ToNamadaComet()
 	} else {
@@ -395,8 +395,8 @@ func addNamadaConfigToml(config *blockchain_toml.NamadaConfigFile, crd *cosmosv1
 	config.Ledger.Shell.BaseDir = ChainHomeDir(crd) + getCometbftDir(crd)
 
 	config.Ledger.Cometbft.Moniker = &instance
-	if spec.Comet != nil && spec.Comet.TomlOverrides != nil {
-		return config.ExportMergeWithTomlOverrides([]byte(*spec.Comet.TomlOverrides))
+	if spec.CometBFT != nil && spec.CometBFT.TomlOverrides != nil {
+		return config.ExportMergeWithTomlOverrides([]byte(*spec.CometBFT.TomlOverrides))
 	}
 	return toml.Marshal(config)
 }
