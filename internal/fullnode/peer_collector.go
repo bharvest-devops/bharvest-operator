@@ -122,7 +122,7 @@ func (c PeerCollector) Collect(ctx context.Context, crd *cosmosv1.CosmosFullNode
 		svcName := p2pServiceName(crd, i)
 		peers[c.objectKey(crd, i)] = Peer{
 			NodeID:         nodeKey.ID(),
-			PrivateAddress: fmt.Sprintf("%s.%s.svc.cluster.local:%d", svcName, secret.Namespace, p2pPort),
+			PrivateAddress: fmt.Sprintf("%s.%s:%d", svcName, secret.Namespace, p2pPort),
 		}
 		if err := c.addExternalAddress(ctx, peers, crd, i); err != nil {
 			return nil, kube.TransientError(err)
