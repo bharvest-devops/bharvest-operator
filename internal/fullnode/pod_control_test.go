@@ -223,7 +223,7 @@ func TestPodControl_Reconcile(t *testing.T) {
 					Image:         "new-image",
 				},
 			},
-			Comet:     &cometConfig,
+			CometBFT:  &cometConfig,
 			CosmosSDK: &appConfig,
 		}
 		crd.Status.Height = make(map[string]uint64)
@@ -420,7 +420,7 @@ func TestPodControl_Reconcile(t *testing.T) {
 					SetHaltHeight: true,
 				},
 			},
-			Comet:     &cometConfig,
+			CometBFT:  &cometConfig,
 			CosmosSDK: &appConfig,
 		}
 		crd.Status.Height = make(map[string]uint64)

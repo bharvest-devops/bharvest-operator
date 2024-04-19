@@ -44,7 +44,7 @@ func TestBuildConfigMaps(t *testing.T) {
 		crd.Spec.ChainSpec.Network = "testnet"
 
 		tomlOverrides := `moniker = "agoric"`
-		crd.Spec.ChainSpec.Comet.TomlOverrides = &tomlOverrides
+		crd.Spec.ChainSpec.CometBFT.TomlOverrides = &tomlOverrides
 
 		cms, err := BuildConfigMaps(&crd, nil)
 		require.NoError(t, err)
@@ -116,7 +116,7 @@ func TestBuildConfigMaps(t *testing.T) {
 		cometConfig := cosmosv1.CometBFTConfig{
 			P2P: &cosmosP2P,
 		}
-		crd.Spec.ChainSpec.Comet = &cometConfig
+		crd.Spec.ChainSpec.CometBFT = &cometConfig
 
 		cosmosAppConfig := cosmosv1.SDKAppConfig{}
 		crd.Spec.ChainSpec.CosmosSDK = &cosmosAppConfig
@@ -131,10 +131,10 @@ func TestBuildConfigMaps(t *testing.T) {
 			RPC := cosmosv1.RPC{
 				CorsAllowedOrigins: &corsAllowedOrigins,
 			}
-			custom.Spec.ChainSpec.Comet.RPC = &RPC
+			custom.Spec.ChainSpec.CometBFT.RPC = &RPC
 
-			crd.Spec.ChainSpec.Comet.P2P.MaxNumInboundPeers = ptr(int32(5))
-			crd.Spec.ChainSpec.Comet.P2P.MaxNumOutboundPeers = ptr(int32(15))
+			crd.Spec.ChainSpec.CometBFT.P2P.MaxNumInboundPeers = ptr(int32(5))
+			crd.Spec.ChainSpec.CometBFT.P2P.MaxNumOutboundPeers = ptr(int32(15))
 
 			peers := Peers{
 				client.ObjectKey{Namespace: namespace, Name: "osmosis-0"}: {NodeID: "should not see me", PrivateAddress: "should not see me"},
@@ -185,8 +185,8 @@ func TestBuildConfigMaps(t *testing.T) {
 
 			privatePeerIds := "private1,private2"
 			unconditoinalPeerIDs := "unconditional1,unconditional2"
-			peerCRD.Spec.ChainSpec.Comet.P2P.UnconditionalPeerIDs = &unconditoinalPeerIDs
-			peerCRD.Spec.ChainSpec.Comet.P2P.PrivatePeerIds = &privatePeerIds
+			peerCRD.Spec.ChainSpec.CometBFT.P2P.UnconditionalPeerIDs = &unconditoinalPeerIDs
+			peerCRD.Spec.ChainSpec.CometBFT.P2P.PrivatePeerIds = &privatePeerIds
 			peers := Peers{
 				client.ObjectKey{Namespace: namespace, Name: "osmosis-0"}: {NodeID: "0", PrivateAddress: "0.local:26656"},
 				client.ObjectKey{Namespace: namespace, Name: "osmosis-1"}: {NodeID: "1", PrivateAddress: "1.local:26656"},
@@ -241,9 +241,9 @@ func TestBuildConfigMaps(t *testing.T) {
 			RPC := cosmosv1.RPC{
 				CorsAllowedOrigins: ptr([]string{"should not see me"}),
 			}
-			overrides.Spec.ChainSpec.Comet.RPC = &RPC
+			overrides.Spec.ChainSpec.CometBFT.RPC = &RPC
 
-			overrides.Spec.ChainSpec.Comet.TomlOverrides = ptr(`
+			overrides.Spec.ChainSpec.CometBFT.TomlOverrides = ptr(`
 	log_format = "json"
 	new_base = "new base value"
 	
@@ -332,7 +332,7 @@ func TestBuildConfigMaps(t *testing.T) {
 
 		t.Run("invalid toml", func(t *testing.T) {
 			malformed := crd.DeepCopy()
-			malformed.Spec.ChainSpec.Comet.TomlOverrides = ptr(`invalid_toml = should be invalid`)
+			malformed.Spec.ChainSpec.CometBFT.TomlOverrides = ptr(`invalid_toml = should be invalid`)
 			_, err := BuildConfigMaps(malformed, nil)
 
 			require.Error(t, err)
@@ -468,7 +468,7 @@ func TestBuildConfigMaps(t *testing.T) {
 
 	test.HasTypeLabel(t, func(crd cosmosv1.CosmosFullNode) []map[string]string {
 		cometConfig := cosmosv1.CometBFTConfig{}
-		crd.Spec.ChainSpec.Comet = &cometConfig
+		crd.Spec.ChainSpec.CometBFT = &cometConfig
 		cosmosAppConfig := cosmosv1.SDKAppConfig{}
 		crd.Spec.ChainSpec.CosmosSDK = &cosmosAppConfig
 
