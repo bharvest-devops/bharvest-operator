@@ -91,6 +91,14 @@ type SelfHealingStatus struct {
 	// PVC auto-scaling status.
 	// +optional
 	PVCAutoScale map[string]*PVCAutoScaleStatus `json:"pvcAutoScaler"`
+
+	// Pod starting failure status.
+	// +optional
+	PodStartingFailure map[string]*PodStartingFailureStatus `json:"podStartingFailure"`
+}
+
+type PodStartingFailureStatus struct {
+	FailureTimes []metav1.Time `json:"failureTimes"`
 }
 
 type PVCAutoScaleStatus struct {
