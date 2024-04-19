@@ -97,10 +97,8 @@ docker-prerelease: ## Build and push a prerelease docker image.
 
 .PHONY: docker-build
 docker-build: test ## Build docker image with the manager.
-	# Build on ARM -> AMD
-	docker buildx build -t ${IMG} --build-arg VERSION=$(shell echo ${IMG} | awk -F: '{print $$2}') --build-arg TARGETARCH="amd64" --build-arg BUILDARCH="arm64"  --platform=linux/amd64 --push .
 	# Build on AMD -> AMD
-#	docker build -t ${IMG} --build-arg VERSION=$(shell echo ${IMG} | awk -F: '{print $$2}') --build-arg TARGETARCH=amd64 --build-arg BUILDARCH=arm64 .
+	docker build -t ${IMG} --build-arg VERSION=$(shell echo ${IMG} | awk -F: '{print $$2}') --build-arg TARGETARCH=amd64 --build-arg BUILDARCH=amd64 .
 
 .PHONY: docker-push
 docker-push: ## Push docker image with the manager.
@@ -161,6 +159,7 @@ KUSTOMIZE_INSTALL_SCRIPT ?= "https://raw.githubusercontent.com/kubernetes-sigs/k
 .PHONY: kustomize
 kustomize: $(KUSTOMIZE) ## Download kustomize locally if necessary.
 $(KUSTOMIZE): $(LOCALBIN)
+	if [ -z "$(LOCALBIN)/kustomize" ] ; then rm $(LOCALBIN)/kustomize; fi;
 	curl -s $(KUSTOMIZE_INSTALL_SCRIPT) | bash -s -- $(subst v,,$(KUSTOMIZE_VERSION)) $(LOCALBIN)
 
 .PHONY: controller-gen

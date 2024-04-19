@@ -439,7 +439,8 @@ type ChainSpec struct {
 
 	// Describes chain type to operate
 	// If not set, defaults to "cosmos".
-	// +kubebuilder:validation:Enum:=cosmos;cosmovisor;namada
+	// +kubebuilder:validation:Enum:=cosmos;namada
+	// +kubebuidler:default:=cosmos
 	ChainType string `json:"chainType"`
 
 	// The network environment. Typically, mainnet, testnet, devnet, etc.
@@ -854,22 +855,67 @@ const (
 )
 
 type ServiceSpec struct {
-	// Max number of external p2p services to create for CometBFT peer exchange.
-	// The public endpoint is set as the "p2p.external_address" in the config.toml.
-	// Controller creates p2p services for each pod so that every pod can peer with each other internally in the cluster.
-	// This setting allows you to control the number of p2p services exposed for peers outside of the cluster to use.
-	// If not set, defaults to 1.
-	// +kubebuilder:validation:Minimum:=0
-	// +optional
-	MaxP2PExternalAddresses *int32 `json:"maxP2PExternalAddresses"`
 
-	// Overrides for all P2P services that need external addresses.
+	// Configuration of external p2p services for CometBFT peer exchange.
+	// By default, controller creates p2p services as "ClusterIP" for each pod so that every pod can peer with each other internally in the cluster.
+	// However, If you want to expose the service of each p2p, and allow outside peer could connect, you can configure this option.
+	//
+	// If you configure nodePort, the public endpoint set as the "p2p.external_address" in the config.toml will be automatically ignore
+	// and set as own address combined with node IP and nodePort.
+	//
 	// +optional
-	P2PTemplate ServiceOverridesSpec `json:"p2pTemplate"`
+	P2PServiceSpecs []P2PServiceSpec `json:"p2pServiceSpecOverrides"`
 
 	// Overrides for the single RPC service.
 	// +optional
 	RPCTemplate ServiceOverridesSpec `json:"rpcTemplate"`
+}
+
+// P2PServiceSpec overrides configuration of p2p service.
+type P2PServiceSpec struct {
+	// +optional
+	Metadata Metadata `json:"metadata"`
+
+	// Index of pod that you'll associate with service.
+	// If name of pod is "cosmos-full-2-0", idx should be 0.
+	// +kubebuilder:validation:Minimum:=0
+	PodIdx *uint32 `json:"podIdx"`
+
+	// Sets endpoint and routing behavior.
+	// See: https://kubernetes.io/docs/tasks/access-application-cluster/create-external-load-balancer/#caveats-and-limitations-when-preserving-source-ips
+	// If not set, defaults to "Local".
+	// +kubebuilder:validation:Enum:=Cluster;Local
+	// +optional
+	ExternalTrafficPolicy *corev1.ServiceExternalTrafficPolicyType `json:"externalTrafficPolicy"`
+
+	// The port that will be exposed by this service.
+	// +optional
+	Port int32 `json:"port"`
+
+	// The port on each node on which this service is exposed when type is
+	// NodePort or LoadBalancer.  Usually assigned by the system. If a value is
+	// specified, in-range, and not in use it will be used, otherwise the
+	// operation will fail.  If not specified, a port will be allocated if this
+	// Service requires one.  If this field is specified when creating a
+	// Service which does not need it, creation will fail. This field will be
+	// wiped when updating a Service to no longer need it (e.g. changing type
+	// from NodePort to ClusterIP).
+	// More info: https://kubernetes.io/docs/concepts/services-networking/service/#type-nodeport
+	// +optional
+	NodePort int32 `json:"nodePort"`
+
+	// Describes ingress methods for a service.
+	// If not set, defaults to "ClusterIP".
+	// +kubebuilder:validation:Enum:=ClusterIP;NodePort;LoadBalancer;ExternalName
+	// +kubebuilder:default:=ClusterIP
+	// +optional
+	Type *corev1.ServiceType `json:"type"`
+
+	// The IP protocol for this port. Supports "TCP", "UDP", and "SCTP".
+	// Default is TCP.
+	// +default:="TCP"
+	// +optional
+	Protocol corev1.Protocol `json:"protocol,omitempty"`
 }
 
 // ServiceOverridesSpec allows some overrides for the created, single RPC service.

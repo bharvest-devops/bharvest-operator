@@ -22,12 +22,11 @@ import (
 var bufPool = sync.Pool{New: func() any { return new(bytes.Buffer) }}
 
 const (
-	healthCheckPort     = healthcheck.Port
-	mainContainer       = "node"
-	chainInitContainer  = "chain-init"
-	chainTypeCosmos     = "cosmos"
-	chainTypeCosmovisor = "cosmovisor"
-	chainTypeNamada     = "namada"
+	healthCheckPort    = healthcheck.Port
+	mainContainer      = "node"
+	chainInitContainer = "chain-init"
+	chainTypeCosmos    = "cosmos"
+	chainTypeNamada    = "namada"
 )
 
 // PodBuilder builds corev1.Pods
@@ -199,7 +198,7 @@ const (
 )
 
 func getCometbftDir(crd *cosmosv1.CosmosFullNode) string {
-	if crd.Spec.ChainSpec.ChainType == chainTypeCosmos || crd.Spec.ChainSpec.ChainType == chainTypeCosmovisor {
+	if crd.Spec.ChainSpec.ChainType == chainTypeCosmos {
 		return ""
 	} else if crd.Spec.ChainSpec.ChainType == chainTypeNamada {
 		return "/" + crd.Spec.ChainSpec.ChainID + "/cometbft"
@@ -465,7 +464,7 @@ rm -rf "$CONFIG_DIR/node_key.json"
 
 echo "Merging config..."
 set -x
-if [ "$CHAIN_TYPE" = "` + chainTypeCosmos + `" ] || [ "$CHAIN_TYPE" = "` + chainTypeCosmovisor + `" ]; then
+if [ "$CHAIN_TYPE" = "` + chainTypeCosmos + `" ] ; then
 	config-merge -f toml "$TMP_DIR/config.toml" "$OVERLAY_DIR/config-overlay.toml" > "$CONFIG_DIR/config.toml"
 	config-merge -f toml "$TMP_DIR/app.toml" "$OVERLAY_DIR/app-overlay.toml" > "$CONFIG_DIR/app.toml"
 elif [ "$CHAIN_TYPE" = "` + chainTypeNamada + `" ]; then
@@ -488,7 +487,7 @@ func initContainers(crd *cosmosv1.CosmosFullNode, moniker string) []corev1.Conta
 	env := envVars(crd)
 
 	var required []corev1.Container
-	if crd.Spec.ChainSpec.ChainType == chainTypeCosmos || crd.Spec.ChainSpec.ChainType == chainTypeCosmovisor || crd.Spec.ChainSpec.ChainType == "" {
+	if crd.Spec.ChainSpec.ChainType == chainTypeCosmos {
 		initCmd := fmt.Sprintf("%s init --chain-id %s %s", binary, crd.Spec.ChainSpec.ChainID, moniker)
 		if len(crd.Spec.ChainSpec.AdditionalInitArgs) > 0 {
 			initCmd += " " + strings.Join(crd.Spec.ChainSpec.AdditionalInitArgs, " ")
@@ -579,9 +578,7 @@ func startCmdAndArgs(crd *cosmosv1.CosmosFullNode) (string, []string) {
 	)
 
 	// Determine blockchain types to operate
-	if crd.Spec.ChainSpec.ChainType == chainTypeCosmovisor {
-		binary = "sh"
-	} else if crd.Spec.ChainSpec.ChainType == chainTypeNamada {
+	if crd.Spec.ChainSpec.ChainType == chainTypeNamada {
 		binary = "sh"
 	}
 
@@ -602,10 +599,7 @@ func startCommandArgs(crd *cosmosv1.CosmosFullNode) []string {
 	args := []string{"start", "--home", ChainHomeDir(crd)}
 	cfg := crd.Spec.ChainSpec
 
-	if crd.Spec.ChainSpec.ChainType == chainTypeCosmovisor {
-		originArgs := args
-		args = []string{"-c", "/bin/cosmovisor init /bin/" + cfg.Binary + "; " + "/bin/cosmovisor run " + strings.Join(originArgs, " ")}
-	} else if crd.Spec.ChainSpec.ChainType == chainTypeNamada {
+	if crd.Spec.ChainSpec.ChainType == chainTypeNamada {
 		args = []string{"-c", "namada --base-dir " + ChainHomeDir(crd) + " --chain-id " + crd.Spec.ChainSpec.ChainID + " node ledger run"}
 		return args
 	}

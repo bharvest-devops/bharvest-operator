@@ -25,6 +25,13 @@ func TestBuildServices(t *testing.T) {
 		crd.Namespace = "test"
 		crd.Spec.ChainSpec.Network = "testnet"
 		crd.Spec.PodTemplate.Image = "terra:v6.0.0"
+		crd.Spec.Service.P2PServiceSpecs = []cosmosv1.P2PServiceSpec{
+			{
+				PodIdx:   ptr(uint32(0)),
+				Type:     ptr(corev1.ServiceTypeLoadBalancer),
+				Protocol: corev1.ProtocolTCP,
+			},
+		}
 
 		svcs := BuildServices(&crd)
 
@@ -71,7 +78,17 @@ func TestBuildServices(t *testing.T) {
 	t.Run("p2p max external addresses", func(t *testing.T) {
 		crd := defaultCRD()
 		crd.Spec.Replicas = 3
-		crd.Spec.Service.MaxP2PExternalAddresses = ptr(int32(2))
+
+		crd.Spec.Service.P2PServiceSpecs = []cosmosv1.P2PServiceSpec{
+			{
+				PodIdx: ptr(uint32(0)),
+				Type:   ptr(corev1.ServiceTypeLoadBalancer),
+			},
+			{
+				PodIdx: ptr(uint32(1)),
+				Type:   ptr(corev1.ServiceTypeLoadBalancer),
+			},
+		}
 
 		svcs := BuildServices(&crd)
 
@@ -91,46 +108,27 @@ func TestBuildServices(t *testing.T) {
 		require.Empty(t, got.Spec.ExternalTrafficPolicy)
 	})
 
-	t.Run("zero p2p max external addresses", func(t *testing.T) {
-		crd := defaultCRD()
-		crd.Spec.Replicas = 3
-		crd.Spec.Service.MaxP2PExternalAddresses = ptr(int32(0))
-		// These overrides should be ignored.
-		crd.Spec.Service.P2PTemplate = cosmosv1.ServiceOverridesSpec{
-			Metadata: cosmosv1.Metadata{
-				Labels: map[string]string{"test": "should not see me"},
-			},
-			Type:                  ptr(corev1.ServiceTypeNodePort),
-			ExternalTrafficPolicy: ptr(corev1.ServiceExternalTrafficPolicyTypeLocal),
-		}
-
-		svcs := BuildServices(&crd)
-
-		gotP2P := lo.Filter(svcs, func(s diff.Resource[*corev1.Service], _ int) bool {
-			return s.Object().Labels[kube.ComponentLabel] == "p2p"
-		})
-
-		require.Equal(t, 3, len(gotP2P))
-		for i, svc := range gotP2P {
-			p2p := svc.Object()
-			require.Empty(t, p2p.Labels["test"])
-			require.Equal(t, corev1.ServiceTypeClusterIP, p2p.Spec.Type, i)
-			require.Empty(t, p2p.Spec.ExternalTrafficPolicy, i)
-		}
-	})
-
 	t.Run("p2p services with overrides", func(t *testing.T) {
 		crd := defaultCRD()
 		crd.Spec.Replicas = 2
 		crd.Name = "terra"
-		crd.Spec.Service.MaxP2PExternalAddresses = ptr(int32(2))
-		crd.Spec.Service.P2PTemplate = cosmosv1.ServiceOverridesSpec{
-			Metadata: cosmosv1.Metadata{
-				Labels:      map[string]string{"test": "value1", "app.kubernetes.io/name": "should not see me"},
-				Annotations: map[string]string{"test": "value2", "app.kubernetes.io/ordinal": "should not see me"},
+
+		metadata := cosmosv1.Metadata{
+			Labels:      map[string]string{"test": "value1", "app.kubernetes.io/name": "should not see me"},
+			Annotations: map[string]string{"test": "value2", "app.kubernetes.io/ordinal": "should not see me"},
+		}
+
+		crd.Spec.Service.P2PServiceSpecs = []cosmosv1.P2PServiceSpec{
+			{
+				PodIdx:   ptr(uint32(0)),
+				Metadata: metadata,
+				Type:     ptr(corev1.ServiceTypeNodePort),
 			},
-			Type:                  ptr(corev1.ServiceTypeNodePort),
-			ExternalTrafficPolicy: ptr(corev1.ServiceExternalTrafficPolicyTypeLocal),
+			{
+				PodIdx:   ptr(uint32(1)),
+				Metadata: metadata,
+				Type:     ptr(corev1.ServiceTypeNodePort),
+			},
 		}
 		svcs := BuildServices(&crd)
 
@@ -150,7 +148,6 @@ func TestBuildServices(t *testing.T) {
 				Ports: []corev1.ServicePort{
 					{
 						Name:       "p2p",
-						Protocol:   corev1.ProtocolTCP,
 						Port:       26656,
 						TargetPort: intstr.FromString("p2p"),
 					},

@@ -5,7 +5,6 @@ import (
 	cosmosv1 "github.com/bharvest-devops/cosmos-operator/api/v1"
 	"github.com/bharvest-devops/cosmos-operator/internal/diff"
 	"github.com/bharvest-devops/cosmos-operator/internal/kube"
-	"github.com/samber/lo"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/util/intstr"
 )
@@ -24,11 +23,6 @@ const maxP2PServiceDefault = int32(1)
 // interpreted as byzantine behavior if the peer previously connected to a pod that was in sync through the same
 // external address.
 func BuildServices(crd *cosmosv1.CosmosFullNode) []diff.Resource[*corev1.Service] {
-	max := maxP2PServiceDefault
-	if v := crd.Spec.Service.MaxP2PExternalAddresses; v != nil {
-		max = *v
-	}
-	maxExternal := lo.Clamp(max, 0, crd.Spec.Replicas)
 	p2ps := make([]diff.Resource[*corev1.Service], crd.Spec.Replicas)
 
 	for i := int32(0); i < crd.Spec.Replicas; i++ {
@@ -46,11 +40,13 @@ func BuildServices(crd *cosmosv1.CosmosFullNode) []diff.Resource[*corev1.Service
 		svc.Annotations = map[string]string{}
 		svc.Spec.Selector = map[string]string{kube.InstanceLabel: instanceName(crd, ordinal)}
 
-		if i < maxExternal {
-			preserveMergeInto(svc.Labels, crd.Spec.Service.P2PTemplate.Metadata.Labels)
-			preserveMergeInto(svc.Annotations, crd.Spec.Service.P2PTemplate.Metadata.Annotations)
-			svc.Spec.Type = *valOrDefault(crd.Spec.Service.P2PTemplate.Type, ptr(corev1.ServiceTypeLoadBalancer))
-			svc.Spec.ExternalTrafficPolicy = *valOrDefault(crd.Spec.Service.P2PTemplate.ExternalTrafficPolicy, ptr(corev1.ServiceExternalTrafficPolicyTypeLocal))
+		p2pServiceSpec := findP2PServiceSpec(crd, i)
+
+		if p2pServiceSpec != nil {
+			preserveMergeInto(svc.Labels, p2pServiceSpec.Metadata.Labels)
+			preserveMergeInto(svc.Annotations, p2pServiceSpec.Metadata.Annotations)
+			svc.Spec.Type = *valOrDefault(p2pServiceSpec.Type, ptr(corev1.ServiceTypeLoadBalancer))
+			svc.Spec.ExternalTrafficPolicy = *valOrDefault(p2pServiceSpec.ExternalTrafficPolicy, ptr(corev1.ServiceExternalTrafficPolicyTypeLocal))
 		} else {
 			svc.Spec.Type = corev1.ServiceTypeClusterIP
 		}
@@ -69,11 +65,15 @@ func BuildServices(crd *cosmosv1.CosmosFullNode) []diff.Resource[*corev1.Service
 		}
 
 		for dp := 0; dp < len(servicePortList); dp++ {
-			n := servicePortList[dp].Name
-			for _, p := range crd.Spec.Service.P2PTemplate.Ports {
-				if p.Name == fmt.Sprintf("%s.%s", p2pServiceName(crd, ordinal), portNameP2P) {
-					servicePortList[dp] = p
-					servicePortList[dp].Name = n
+			if p2pServiceSpec != nil {
+				if p2pServiceSpec.Port != *new(int32) {
+					servicePortList[dp].Port = p2pServiceSpec.Port
+				}
+				if p2pServiceSpec.Protocol != corev1.ProtocolTCP {
+					servicePortList[dp].Protocol = p2pServiceSpec.Protocol
+				}
+				if p2pServiceSpec.NodePort != *new(int32) {
+					servicePortList[dp].NodePort = p2pServiceSpec.NodePort
 				}
 			}
 		}
@@ -150,11 +150,17 @@ func rpcService(crd *cosmosv1.CosmosFullNode) *corev1.Service {
 
 	for i := 0; i < len(servicePortList); i++ {
 		n := servicePortList[i].Name
-		for _, p := range crd.Spec.Service.RPCTemplate.Ports {
-			if p.Name == fmt.Sprintf("%s.%s", rpcServiceName(crd), n) {
+		for _, p := range rpcSpec.Ports {
+
+			// Prevents error occurrence from wrong request when not configured nodePort but entered nodePort
+			if *rpcSpec.Type != corev1.ServiceTypeNodePort && p.NodePort != *new(int32) {
+				p.NodePort = *new(int32)
+			}
+			if p.Name == n {
 				servicePortList[i] = p
 				servicePortList[i].Name = n
 			}
+			break
 		}
 	}
 
@@ -176,4 +182,15 @@ func p2pServiceName(crd *cosmosv1.CosmosFullNode, ordinal int32) string {
 
 func rpcServiceName(crd *cosmosv1.CosmosFullNode) string {
 	return fmt.Sprintf("%s-rpc", appName(crd))
+}
+
+func findP2PServiceSpec(crd *cosmosv1.CosmosFullNode, idx int32) *cosmosv1.P2PServiceSpec {
+
+	for _, p := range crd.Spec.Service.P2PServiceSpecs {
+		if *p.PodIdx == uint32(idx) {
+			return &p
+		}
+	}
+
+	return nil
 }
