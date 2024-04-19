@@ -128,11 +128,12 @@ func (r *SelfHealingReconciler) mitigateHeightDrift(ctx context.Context, reporte
 			reporter.RecordError("HeightDriftMitigationDeletePod", err)
 			continue
 		}
-		reporter.Info("Deleted pod for meeting height drift threshold", "pod", pod.Name)
+		reporter.Info("Deleted pod for meeting height drift or heightRetainTime threshold", "pod", pod.Name)
 		deleted++
 	}
 	if deleted > 0 {
-		msg := fmt.Sprintf("Height lagged behind by more than %d blocks or a certain amount of time(%d); deleted pod(s)", crd.Spec.SelfHeal.HeightDriftMitigation.ThresholdHeight, crd.Spec.SelfHeal.HeightDriftMitigation.ThresholdTime)
+		msg := fmt.Sprintf("Height lagged behind by more than %d blocks or overed heightRetainTime than (%d); deleted %d pod(s)",
+			crd.Spec.SelfHeal.HeightDriftMitigation.ThresholdHeight, crd.Spec.SelfHeal.HeightDriftMitigation.ThresholdTime, deleted)
 		reporter.RecordInfo("HeightDriftMitigation", msg)
 	}
 }
