@@ -20,6 +20,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/samber/lo"
+	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"net/http"
 	"time"
 
@@ -89,6 +92,56 @@ func (r *SelfHealingReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 	return ctrl.Result{RequeueAfter: 60 * time.Second}, nil
 }
 
+func (r *SelfHealingReconciler) regeneratePVC(ctx context.Context, reporter kube.Reporter, crd *cosmosv1.CosmosFullNode, pod *corev1.Pod) {
+	if crd.Spec.SelfHeal.HeightDriftMitigation.RegeneratePVC == nil {
+		return
+	}
+
+	podStartingFailure := crd.Status.SelfHealing.PodStartingFailure[pod.Name]
+
+	now := metav1.Time{Time: time.Now()}
+
+	if podStartingFailure != nil {
+		podStartingFailure.FailureTimes = lo.FilterMap(podStartingFailure.FailureTimes, func(item metav1.Time, index int) (metav1.Time, bool) {
+			collectionDuration := crd.Spec.SelfHeal.HeightDriftMitigation.RegeneratePVC.FailedCountCollectionDuration
+			if (item.Add(collectionDuration.Duration)).Before(now.Time) {
+				return metav1.Time{}, false
+			}
+			return item, true
+		})
+	} else {
+		crd.Status.SelfHealing.PodStartingFailure[pod.Name] = new(cosmosv1.PodStartingFailureStatus)
+		podStartingFailure = crd.Status.SelfHealing.PodStartingFailure[pod.Name]
+	}
+
+	currentFailureCount := uint32(len(podStartingFailure.FailureTimes))
+	if currentFailureCount > crd.Spec.SelfHeal.HeightDriftMitigation.RegeneratePVC.ThresholdCount {
+		pvc := new(corev1.PersistentVolumeClaim)
+
+		// Find matching PVC to capture its actual capacity
+		name := fullnode.PVCName(pod)
+		key := client.ObjectKey{Namespace: pod.Namespace, Name: name}
+		if err := r.Client.Get(ctx, key, pvc); err != nil {
+			reporter.Error(err, "Failed to get pvc ", pod.Name)
+			reporter.RecordError("PVCRegenerating", err)
+			return
+		}
+
+		if err := r.Delete(ctx, pvc); err != nil {
+			reporter.Error(err, "Failed to delete pvc", pvc.Name)
+			reporter.RecordError("PVCRegenerating", err)
+			return
+		}
+
+		msg := fmt.Sprintf("Pod %s has overed thresholdCount(%d) while %s. Re-generating PVC...", pod.Name, currentFailureCount, crd.Spec.SelfHeal.HeightDriftMitigation.RegeneratePVC.FailedCountCollectionDuration.String())
+		reporter.RecordInfo("PVCRegenerating", msg)
+	}
+
+	podStartingFailure.FailureTimes = append(crd.Status.SelfHealing.PodStartingFailure[pod.Name].FailureTimes, now)
+
+	return
+}
+
 func (r *SelfHealingReconciler) pvcAutoScale(ctx context.Context, reporter kube.Reporter, crd *cosmosv1.CosmosFullNode) {
 	if crd.Spec.SelfHeal.PVCAutoScale == nil {
 		return
@@ -129,6 +182,7 @@ func (r *SelfHealingReconciler) mitigateHeightDrift(ctx context.Context, reporte
 			continue
 		}
 		reporter.Info("Deleted pod for meeting height drift or heightRetainTime threshold", "pod", pod.Name)
+		r.regeneratePVC(ctx, reporter, crd, pod)
 		deleted++
 	}
 	if deleted > 0 {
