@@ -439,7 +439,8 @@ type ChainSpec struct {
 
 	// Describes chain type to operate
 	// If not set, defaults to "cosmos".
-	// +kubebuilder:validation:Enum:=cosmos;cosmovisor;namada
+	// +kubebuilder:validation:Enum:=cosmos;namada
+	// +kubebuidler:default:=cosmos
 	ChainType string `json:"chainType"`
 
 	// The network environment. Typically, mainnet, testnet, devnet, etc.
