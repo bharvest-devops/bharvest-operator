@@ -84,7 +84,7 @@ func TestPVCAutoScaler_SignalPVCResize(t *testing.T) {
 				return nil
 			})
 
-			scaler := NewPVCAutoScaler(syncer)
+			scaler := NewPVCHealer(syncer)
 			scaler.now = func() time.Time {
 				return stubNow
 			}
@@ -132,7 +132,7 @@ func TestPVCAutoScaler_SignalPVCResize(t *testing.T) {
 			patchCalled = true
 			return nil
 		})
-		scaler := NewPVCAutoScaler(syncer)
+		scaler := NewPVCHealer(syncer)
 
 		usage := []PVCDiskUsage{
 			{Name: "pvc-" + name + "-0", PercentUsed: 80, Capacity: capacity},
@@ -164,7 +164,7 @@ func TestPVCAutoScaler_SignalPVCResize(t *testing.T) {
 				},
 			}
 
-			scaler := NewPVCAutoScaler(panicSyncer)
+			scaler := NewPVCHealer(panicSyncer)
 			usage := []PVCDiskUsage{
 				{Name: "pvc-" + name + "-0", PercentUsed: 80, Capacity: tt.Capacity},
 			}
@@ -194,7 +194,7 @@ func TestPVCAutoScaler_SignalPVCResize(t *testing.T) {
 				},
 			}
 
-			scaler := NewPVCAutoScaler(panicSyncer)
+			scaler := NewPVCHealer(panicSyncer)
 			got, err := scaler.SignalPVCResize(ctx, &crd, lo.Shuffle(tt.DiskUsage))
 
 			require.NoError(t, err)
@@ -220,7 +220,7 @@ func TestPVCAutoScaler_SignalPVCResize(t *testing.T) {
 			},
 		}
 
-		scaler := NewPVCAutoScaler(panicSyncer)
+		scaler := NewPVCHealer(panicSyncer)
 		usage := []PVCDiskUsage{
 			{Name: "pvc-" + name + "-0", PercentUsed: usedSpacePercentage, Capacity: resource.MustParse("90Gi")},
 		}
@@ -249,7 +249,7 @@ func TestPVCAutoScaler_SignalPVCResize(t *testing.T) {
 				},
 			}
 
-			scaler := NewPVCAutoScaler(panicSyncer)
+			scaler := NewPVCHealer(panicSyncer)
 			usage := []PVCDiskUsage{
 				{Name: "pvc-" + name + "-0", PercentUsed: usedSpacePercentage},
 			}
@@ -271,7 +271,7 @@ func TestPVCAutoScaler_SignalPVCResize(t *testing.T) {
 			},
 		}
 
-		scaler := NewPVCAutoScaler(mockStatusSyncer(func(ctx context.Context, key client.ObjectKey, update func(status *cosmosv1.FullNodeStatus)) error {
+		scaler := NewPVCHealer(mockStatusSyncer(func(ctx context.Context, key client.ObjectKey, update func(status *cosmosv1.FullNodeStatus)) error {
 			return errors.New("boom")
 		}))
 		usage := []PVCDiskUsage{

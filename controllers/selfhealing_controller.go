@@ -20,9 +20,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/samber/lo"
 	corev1 "k8s.io/api/core/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"net/http"
 	"time"
 
@@ -43,7 +41,7 @@ type SelfHealingReconciler struct {
 	cacheController *cosmos.CacheController
 	diskClient      *fullnode.DiskUsageCollector
 	driftDetector   fullnode.DriftDetection
-	pvcAutoScaler   *fullnode.PVCAutoScaler
+	pvcHealer       *fullnode.PVCHealer
 	recorder        record.EventRecorder
 }
 
@@ -59,7 +57,7 @@ func NewSelfHealing(
 		cacheController: cacheController,
 		diskClient:      fullnode.NewDiskUsageCollector(healthcheck.NewClient(httpClient), client),
 		driftDetector:   fullnode.NewDriftDetection(cacheController),
-		pvcAutoScaler:   fullnode.NewPVCAutoScaler(statusClient),
+		pvcHealer:       fullnode.NewPVCHealer(statusClient),
 		recorder:        recorder,
 	}
 }
@@ -97,24 +95,12 @@ func (r *SelfHealingReconciler) regeneratePVC(ctx context.Context, reporter kube
 		return
 	}
 
-	podStartingFailure := crd.Status.SelfHealing.PodStartingFailure[pod.Name]
-
-	now := metav1.Time{Time: time.Now()}
-
-	if podStartingFailure != nil {
-		podStartingFailure.FailureTimes = lo.FilterMap(podStartingFailure.FailureTimes, func(item metav1.Time, index int) (metav1.Time, bool) {
-			collectionDuration := crd.Spec.SelfHeal.HeightDriftMitigation.RegeneratePVC.FailedCountCollectionDuration
-			if (item.Add(collectionDuration.Duration)).Before(now.Time) {
-				return metav1.Time{}, false
-			}
-			return item, true
-		})
-	} else {
-		crd.Status.SelfHealing.PodStartingFailure[pod.Name] = new(cosmosv1.PodStartingFailureStatus)
-		podStartingFailure = crd.Status.SelfHealing.PodStartingFailure[pod.Name]
+	currentFailureCount, err := r.pvcHealer.UpdatePodFailure(ctx, crd, pod.Name)
+	if err != nil {
+		reporter.Error(err, "Failed to update podFailureStatus")
+		reporter.RecordError("PVCRegenerating", err)
 	}
 
-	currentFailureCount := uint32(len(podStartingFailure.FailureTimes))
 	if currentFailureCount > crd.Spec.SelfHeal.HeightDriftMitigation.RegeneratePVC.ThresholdCount {
 		pvc := new(corev1.PersistentVolumeClaim)
 
@@ -136,9 +122,7 @@ func (r *SelfHealingReconciler) regeneratePVC(ctx context.Context, reporter kube
 		msg := fmt.Sprintf("Pod %s has overed thresholdCount(%d) while %s. Re-generating PVC...", pod.Name, currentFailureCount, crd.Spec.SelfHeal.HeightDriftMitigation.RegeneratePVC.FailedCountCollectionDuration.String())
 		reporter.RecordInfo("PVCRegenerating", msg)
 	}
-
-	podStartingFailure.FailureTimes = append(crd.Status.SelfHealing.PodStartingFailure[pod.Name].FailureTimes, now)
-
+	
 	return
 }
 
@@ -153,7 +137,7 @@ func (r *SelfHealingReconciler) pvcAutoScale(ctx context.Context, reporter kube.
 		reporter.RecordError("PVCAutoScaleCollectUsage", errors.New("failed to collect pvc disk usage"))
 		return
 	}
-	didSignal, err := r.pvcAutoScaler.SignalPVCResize(ctx, crd, usage)
+	didSignal, err := r.pvcHealer.SignalPVCResize(ctx, crd, usage)
 	if err != nil {
 		reporter.Error(err, "Failed to signal pvc resize")
 		reporter.RecordError("PVCAutoScaleSignalResize", err)
