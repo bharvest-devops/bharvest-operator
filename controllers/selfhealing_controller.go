@@ -95,13 +95,13 @@ func (r *SelfHealingReconciler) regeneratePVC(ctx context.Context, reporter kube
 		return
 	}
 
-	currentFailureCount, err := r.pvcHealer.UpdatePodFailure(ctx, crd, pod.Name)
+	regenPVC, err := r.pvcHealer.UpdatePodFailure(ctx, crd, pod.Name)
 	if err != nil {
 		reporter.Error(err, "Failed to update podFailureStatus")
 		reporter.RecordError("PVCRegenerating", err)
 	}
 
-	if currentFailureCount > crd.Spec.SelfHeal.HeightDriftMitigation.RegeneratePVC.ThresholdCount {
+	if regenPVC {
 		pvc := new(corev1.PersistentVolumeClaim)
 
 		// Find matching PVC to capture its actual capacity
@@ -119,10 +119,10 @@ func (r *SelfHealingReconciler) regeneratePVC(ctx context.Context, reporter kube
 			return
 		}
 
-		msg := fmt.Sprintf("Pod %s has overed thresholdCount(%d) while %s. Re-generating PVC...", pod.Name, currentFailureCount, crd.Spec.SelfHeal.HeightDriftMitigation.RegeneratePVC.FailedCountCollectionDuration.String())
+		msg := fmt.Sprintf("Pod %s has overed thresholdCount[%s]. Re-generating PVC...", pod.Name, crd.Spec.SelfHeal.HeightDriftMitigation.RegeneratePVC.FailedCountCollectionDuration.String())
 		reporter.RecordInfo("PVCRegenerating", msg)
 	}
-	
+
 	return
 }
 
