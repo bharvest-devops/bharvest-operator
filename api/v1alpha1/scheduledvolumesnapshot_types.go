@@ -192,6 +192,7 @@ type VolumeSnapshotStatus struct {
 //+kubebuilder:subresource:status
 //+kubebuilder:printcolumn:name="Phase",type=string,JSONPath=`.status.phase`
 //+kubebuilder:printcolumn:name="Age",type="date",JSONPath=".metadata.creationTimestamp"
+//+kubebuilder:resource:scope=Namespaced,shortName=svs
 
 // ScheduledVolumeSnapshot is the Schema for the scheduledvolumesnapshots API
 type ScheduledVolumeSnapshot struct {
