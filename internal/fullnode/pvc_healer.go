@@ -134,14 +134,18 @@ func (healer PVCHealer) calcNextCapacity(current resource.Quantity, increase str
 	return *resource.NewQuantity(current.Value()+addtl.Value(), current.Format), nil
 }
 
-func (healer PVCHealer) UpdatePodFailure(ctx context.Context, crd *cosmosv1.CosmosFullNode, podName string) (uint32, error) {
-	var podStartingFailures map[string]*cosmosv1.PodStartingFailureStatus
-	if crd.Status.SelfHealing.PodStartingFailure != nil {
-		podStartingFailures = crd.Status.SelfHealing.PodStartingFailure
+func (healer PVCHealer) UpdatePodFailure(ctx context.Context, crd *cosmosv1.CosmosFullNode, podName string) (bool, error) {
+	var regenPVCStatus map[string]*cosmosv1.RegenPVCStatus
+	if crd.Status.SelfHealing.RegenPVCStatus != nil {
+		regenPVCStatus = crd.Status.SelfHealing.RegenPVCStatus
+		if regenPVCStatus[podName].Phase != nil && *regenPVCStatus[podName].Phase == cosmosv1.RegenPVCPhaseRegeneratingPVC {
+			return false, nil
+		}
 	}
-	currentPodStartingFailure := podStartingFailures[podName]
 
-	now := metav1.Time{Time: time.Now()}
+	currentPodStartingFailure := regenPVCStatus[podName]
+
+	now := metav1.NewTime(healer.now())
 
 	if currentPodStartingFailure != nil {
 		currentPodStartingFailure.FailureTimes = lo.FilterMap(currentPodStartingFailure.FailureTimes, func(item metav1.Time, index int) (metav1.Time, bool) {
@@ -152,17 +156,17 @@ func (healer PVCHealer) UpdatePodFailure(ctx context.Context, crd *cosmosv1.Cosm
 			return item, true
 		})
 	} else {
-		currentPodStartingFailure = new(cosmosv1.PodStartingFailureStatus)
+		currentPodStartingFailure = new(cosmosv1.RegenPVCStatus)
 	}
 
 	currentPodStartingFailure.FailureTimes = append(currentPodStartingFailure.FailureTimes, now)
 
 	currentFailureCount := uint32(len(currentPodStartingFailure.FailureTimes))
 
-	return currentFailureCount, healer.client.SyncUpdate(ctx, client.ObjectKeyFromObject(crd), func(status *cosmosv1.FullNodeStatus) {
-		if status.SelfHealing.PodStartingFailure == nil {
-			status.SelfHealing.PodStartingFailure = map[string]*cosmosv1.PodStartingFailureStatus{}
+	return currentFailureCount > crd.Spec.SelfHeal.HeightDriftMitigation.RegeneratePVC.ThresholdCount, healer.client.SyncUpdate(ctx, client.ObjectKeyFromObject(crd), func(status *cosmosv1.FullNodeStatus) {
+		if status.SelfHealing.RegenPVCStatus == nil {
+			status.SelfHealing.RegenPVCStatus = map[string]*cosmosv1.RegenPVCStatus{}
 		}
-		status.SelfHealing.PodStartingFailure[podName] = currentPodStartingFailure
+		status.SelfHealing.RegenPVCStatus[podName] = currentPodStartingFailure
 	})
 }
