@@ -47,19 +47,17 @@ func (d DriftDetection) LaggingPods(ctx context.Context, crd *cosmosv1.CosmosFul
 			return item.GetPod(), false
 		}
 	})
-	if len(lagging) > 0 {
-		return lagging
+	if len(lagging) == 0 {
+		maxHeight := lo.MaxBy(synced, func(a cosmos.StatusItem, b cosmos.StatusItem) bool {
+			return a.Status.LatestBlockHeight() > b.Status.LatestBlockHeight()
+		}).Status.LatestBlockHeight()
+
+		thresh := uint64(crd.Spec.SelfHeal.HeightDriftMitigation.ThresholdHeight)
+		lagging = lo.FilterMap(synced, func(item cosmos.StatusItem, _ int) (*corev1.Pod, bool) {
+			isLagging := maxHeight-item.Status.LatestBlockHeight() >= thresh
+			return item.GetPod(), isLagging
+		})
 	}
-
-	maxHeight := lo.MaxBy(synced, func(a cosmos.StatusItem, b cosmos.StatusItem) bool {
-		return a.Status.LatestBlockHeight() > b.Status.LatestBlockHeight()
-	}).Status.LatestBlockHeight()
-
-	thresh := uint64(crd.Spec.SelfHeal.HeightDriftMitigation.ThresholdHeight)
-	lagging = lo.FilterMap(synced, func(item cosmos.StatusItem, _ int) (*corev1.Pod, bool) {
-		isLagging := maxHeight-item.Status.LatestBlockHeight() >= thresh
-		return item.GetPod(), isLagging
-	})
 
 	avail := d.available(synced.Pods(), 5*time.Second, time.Now())
 	rollout := d.computeRollout(crd.Spec.RolloutStrategy.MaxUnavailable, int(crd.Spec.Replicas), len(avail))
