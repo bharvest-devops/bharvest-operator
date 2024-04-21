@@ -12,6 +12,8 @@ spec:
     kind: CosmosFullNode
     listKind: CosmosFullNodeList
     plural: cosmosfullnodes
+    shortNames:
+    - fullnode
     singular: cosmosfullnode
   scope: Namespaced
   versions:
@@ -6583,19 +6585,6 @@ spec:
               selfHealing:
                 description: Status set by the SelfHealing controller.
                 properties:
-                  podStartingFailure:
-                    additionalProperties:
-                      properties:
-                        failureTimes:
-                          items:
-                            format: date-time
-                            type: string
-                          type: array
-                      required:
-                      - failureTimes
-                      type: object
-                    description: Pod starting failure status.
-                    type: object
                   pvcAutoScaler:
                     additionalProperties:
                       properties:
@@ -6616,6 +6605,23 @@ spec:
                       - requestedSize
                       type: object
                     description: PVC auto-scaling status.
+                    type: object
+                  regenPVCStatus:
+                    additionalProperties:
+                      properties:
+                        phase:
+                          description: The phase of the controller.
+                          type: string
+                        podStartingFailureTimes:
+                          items:
+                            format: date-time
+                            type: string
+                          type: array
+                      required:
+                      - phase
+                      - podStartingFailureTimes
+                      type: object
+                    description: Re-generate PVC status.
                     type: object
                 type: object
               status:

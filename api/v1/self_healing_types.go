@@ -92,14 +92,24 @@ type SelfHealingStatus struct {
 	// +optional
 	PVCAutoScale map[string]*PVCAutoScaleStatus `json:"pvcAutoScaler"`
 
-	// Pod starting failure status.
+	// Re-generate PVC status.
 	// +optional
-	PodStartingFailure map[string]*PodStartingFailureStatus `json:"podStartingFailure"`
+	RegenPVCStatus map[string]*RegenPVCStatus `json:"regenPVCStatus"`
 }
 
-type PodStartingFailureStatus struct {
-	FailureTimes []metav1.Time `json:"failureTimes"`
+type RegenPVCStatus struct {
+	FailureTimes []metav1.Time `json:"podStartingFailureTimes"`
+
+	// The phase of the controller.
+	Phase *RegenPVCPhase `json:"phase"`
 }
+
+type RegenPVCPhase string
+
+const (
+	RegenPVCPhaseRegeneratingPVC RegenPVCPhase = "RegeneratingPVC"
+	RegenPVCPhaseNotYet          RegenPVCPhase = "NotYet"
+)
 
 type PVCAutoScaleStatus struct {
 	// The PVC size requested by the SelfHealing controller.

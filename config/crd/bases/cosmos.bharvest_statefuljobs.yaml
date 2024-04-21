@@ -12,6 +12,8 @@ spec:
     kind: StatefulJob
     listKind: StatefulJobList
     plural: statefuljobs
+    shortNames:
+    - sfj
     singular: statefuljob
   scope: Namespaced
   versions:

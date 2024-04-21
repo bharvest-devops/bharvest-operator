@@ -12,6 +12,8 @@ spec:
     kind: ScheduledVolumeSnapshot
     listKind: ScheduledVolumeSnapshotList
     plural: scheduledvolumesnapshots
+    shortNames:
+    - svs
     singular: scheduledvolumesnapshot
   scope: Namespaced
   versions:
