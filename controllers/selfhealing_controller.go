@@ -20,6 +20,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	corev1 "k8s.io/api/core/v1"
 	"net/http"
 	"time"
 
@@ -40,7 +41,7 @@ type SelfHealingReconciler struct {
 	cacheController *cosmos.CacheController
 	diskClient      *fullnode.DiskUsageCollector
 	driftDetector   fullnode.DriftDetection
-	pvcAutoScaler   *fullnode.PVCAutoScaler
+	pvcHealer       *fullnode.PVCHealer
 	recorder        record.EventRecorder
 }
 
@@ -56,7 +57,7 @@ func NewSelfHealing(
 		cacheController: cacheController,
 		diskClient:      fullnode.NewDiskUsageCollector(healthcheck.NewClient(httpClient), client),
 		driftDetector:   fullnode.NewDriftDetection(cacheController),
-		pvcAutoScaler:   fullnode.NewPVCAutoScaler(statusClient),
+		pvcHealer:       fullnode.NewPVCHealer(statusClient),
 		recorder:        recorder,
 	}
 }
@@ -89,6 +90,42 @@ func (r *SelfHealingReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 	return ctrl.Result{RequeueAfter: 60 * time.Second}, nil
 }
 
+func (r *SelfHealingReconciler) regeneratePVC(ctx context.Context, reporter kube.Reporter, crd *cosmosv1.CosmosFullNode, pod *corev1.Pod) {
+	if crd.Spec.SelfHeal.HeightDriftMitigation.RegeneratePVC == nil {
+		return
+	}
+
+	regenPVC, err := r.pvcHealer.UpdatePodFailure(ctx, crd, pod.Name)
+	if err != nil {
+		reporter.Error(err, "Failed to update podFailureStatus")
+		reporter.RecordError("PVCRegenerating", err)
+	}
+
+	if regenPVC {
+		pvc := new(corev1.PersistentVolumeClaim)
+
+		// Find matching PVC to capture its actual capacity
+		name := fullnode.PVCName(pod)
+		key := client.ObjectKey{Namespace: pod.Namespace, Name: name}
+		if err := r.Client.Get(ctx, key, pvc); err != nil {
+			reporter.Error(err, "Failed to get pvc ", pod.Name)
+			reporter.RecordError("PVCRegenerating", err)
+			return
+		}
+
+		if err := r.Delete(ctx, pvc); err != nil {
+			reporter.Error(err, "Failed to delete pvc", pvc.Name)
+			reporter.RecordError("PVCRegenerating", err)
+			return
+		}
+
+		msg := fmt.Sprintf("Pod %s has overed thresholdCount[%s]. Re-generating PVC...", pod.Name, crd.Spec.SelfHeal.HeightDriftMitigation.RegeneratePVC.FailedCountCollectionDuration.String())
+		reporter.RecordInfo("PVCRegenerating", msg)
+	}
+
+	return
+}
+
 func (r *SelfHealingReconciler) pvcAutoScale(ctx context.Context, reporter kube.Reporter, crd *cosmosv1.CosmosFullNode) {
 	if crd.Spec.SelfHeal.PVCAutoScale == nil {
 		return
@@ -100,7 +137,7 @@ func (r *SelfHealingReconciler) pvcAutoScale(ctx context.Context, reporter kube.
 		reporter.RecordError("PVCAutoScaleCollectUsage", errors.New("failed to collect pvc disk usage"))
 		return
 	}
-	didSignal, err := r.pvcAutoScaler.SignalPVCResize(ctx, crd, usage)
+	didSignal, err := r.pvcHealer.SignalPVCResize(ctx, crd, usage)
 	if err != nil {
 		reporter.Error(err, "Failed to signal pvc resize")
 		reporter.RecordError("PVCAutoScaleSignalResize", err)
@@ -128,11 +165,13 @@ func (r *SelfHealingReconciler) mitigateHeightDrift(ctx context.Context, reporte
 			reporter.RecordError("HeightDriftMitigationDeletePod", err)
 			continue
 		}
-		reporter.Info("Deleted pod for meeting height drift threshold", "pod", pod.Name)
+		reporter.Info("Deleted pod for meeting height drift or heightRetainTime threshold", "pod", pod.Name)
+		r.regeneratePVC(ctx, reporter, crd, pod)
 		deleted++
 	}
 	if deleted > 0 {
-		msg := fmt.Sprintf("Height lagged behind by more than %d blocks or a certain amount of time(%d); deleted pod(s)", crd.Spec.SelfHeal.HeightDriftMitigation.ThresholdHeight, crd.Spec.SelfHeal.HeightDriftMitigation.ThresholdTime)
+		msg := fmt.Sprintf("Height lagged behind by more than %d blocks or overed heightRetainTime than (%d); deleted %d pod(s)",
+			crd.Spec.SelfHeal.HeightDriftMitigation.ThresholdHeight, crd.Spec.SelfHeal.HeightDriftMitigation.ThresholdTime, deleted)
 		reporter.RecordInfo("HeightDriftMitigation", msg)
 	}
 }

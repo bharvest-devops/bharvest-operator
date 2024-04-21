@@ -595,7 +595,7 @@ _Appears in:_
 
 | Field | Description |
 | --- | --- |
-| `pvcAutoScaler` _object (keys:string, values:[PVCAutoScaleStatus](#pvcautoscalestatus))_ | PVC auto-scaling status. |
+| `pvcHealer` _object (keys:string, values:[PVCAutoScaleStatus](#pvcautoscalestatus))_ | PVC auto-scaling status. |
 
 
 #### ServiceOverridesSpec

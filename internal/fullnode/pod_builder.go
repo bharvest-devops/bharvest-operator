@@ -198,7 +198,7 @@ const (
 )
 
 func getCometbftDir(crd *cosmosv1.CosmosFullNode) string {
-	if crd.Spec.ChainSpec.ChainType == chainTypeCosmos {
+	if crd.Spec.ChainSpec.ChainType == chainTypeCosmos || crd.Spec.ChainSpec.ChainType == "" {
 		return ""
 	} else if crd.Spec.ChainSpec.ChainType == chainTypeNamada {
 		return "/" + crd.Spec.ChainSpec.ChainID + "/cometbft"
@@ -487,7 +487,7 @@ func initContainers(crd *cosmosv1.CosmosFullNode, moniker string) []corev1.Conta
 	env := envVars(crd)
 
 	var required []corev1.Container
-	if crd.Spec.ChainSpec.ChainType == chainTypeCosmos {
+	if crd.Spec.ChainSpec.ChainType == chainTypeCosmos || crd.Spec.ChainSpec.ChainType == "" {
 		initCmd := fmt.Sprintf("%s init --chain-id %s %s", binary, crd.Spec.ChainSpec.ChainID, moniker)
 		if len(crd.Spec.ChainSpec.AdditionalInitArgs) > 0 {
 			initCmd += " " + strings.Join(crd.Spec.ChainSpec.AdditionalInitArgs, " ")

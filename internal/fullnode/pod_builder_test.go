@@ -28,7 +28,7 @@ func defaultCRD() cosmosv1.CosmosFullNode {
 			ChainSpec: cosmosv1.ChainSpec{
 				Network:   "mainnet",
 				CosmosSDK: &appConfig,
-				Comet:     &cometConfig,
+				CometBFT:  &cometConfig,
 			},
 			PodTemplate: cosmosv1.PodSpec{
 				Image: "busybox:v1.2.3",
@@ -643,7 +643,7 @@ gaiad start --home /home/operator/cosmos`
 	test.HasTypeLabel(t, func(crd cosmosv1.CosmosFullNode) []map[string]string {
 		cometConfig := cosmosv1.CometBFTConfig{}
 		appConfig := cosmosv1.SDKAppConfig{}
-		crd.Spec.ChainSpec.Comet = &cometConfig
+		crd.Spec.ChainSpec.CometBFT = &cometConfig
 		crd.Spec.ChainSpec.CosmosSDK = &appConfig
 		builder := NewPodBuilder(&crd)
 		pod, _ := builder.WithOrdinal(5).Build()

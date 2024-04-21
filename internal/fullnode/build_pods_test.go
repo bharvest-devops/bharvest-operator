@@ -119,7 +119,7 @@ func TestBuildPods(t *testing.T) {
 					Image: image,
 				},
 				ChainSpec: cosmosv1.ChainSpec{
-					Comet:     &cometConfig,
+					CometBFT:  &cometConfig,
 					CosmosSDK: &appConfig,
 				},
 				InstanceOverrides: map[string]cosmosv1.InstanceOverridesSpec{
@@ -159,7 +159,7 @@ func TestBuildPods(t *testing.T) {
 			Spec: cosmosv1.FullNodeSpec{
 				Replicas: 6,
 				ChainSpec: cosmosv1.ChainSpec{
-					Comet:     &cometConfig,
+					CometBFT:  &cometConfig,
 					CosmosSDK: &appConfig,
 				},
 			},
