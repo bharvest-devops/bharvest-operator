@@ -155,7 +155,7 @@ func (healer PVCHealer) UpdatePodFailure(ctx context.Context, crd *cosmosv1.Cosm
 		currentPodStartingFailure = new(cosmosv1.PodStartingFailureStatus)
 	}
 
-	currentPodStartingFailure.FailureTimes = append(crd.Status.SelfHealing.PodStartingFailure[podName].FailureTimes, now)
+	currentPodStartingFailure.FailureTimes = append(currentPodStartingFailure.FailureTimes, now)
 
 	currentFailureCount := uint32(len(currentPodStartingFailure.FailureTimes))
 
