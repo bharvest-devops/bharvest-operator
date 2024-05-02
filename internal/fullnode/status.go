@@ -42,7 +42,11 @@ func SyncInfoStatus(
 		comet, err := item.GetStatus()
 		if err != nil {
 			stat.Error = ptr(err.Error())
-			stat.LastBlockTimestamp = beforeStat.LastBlockTimestamp
+			if beforeStat != nil {
+				stat.LastBlockTimestamp = beforeStat.LastBlockTimestamp
+			} else {
+				stat.LastBlockTimestamp = stat.Timestamp
+			}
 		} else {
 
 			stat.Height = ptr(comet.LatestBlockHeight())
