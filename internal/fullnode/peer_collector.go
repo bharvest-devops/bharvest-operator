@@ -8,6 +8,7 @@ import (
 	"net"
 	"sort"
 	"strconv"
+	"time"
 
 	cosmosv1 "github.com/bharvest-devops/cosmos-operator/api/v1"
 	"github.com/bharvest-devops/cosmos-operator/internal/kube"
@@ -160,8 +161,13 @@ func (c PeerCollector) addExternalAddress(ctx context.Context, peers Peers, crd 
 		err := c.client.Get(ctx, client.ObjectKey{Name: instanceName(crd, ordinal), Namespace: crd.Namespace}, pod)
 		var podNodeAddress string
 		if err == nil {
-			_ = c.client.Get(ctx, client.ObjectKey{Name: pod.Spec.NodeName}, podNode)
-			if podNode.Name == pod.Spec.NodeName {
+			for i := 0; i < 3; i++ {
+				err = c.client.Get(ctx, client.ObjectKey{Name: pod.Spec.NodeName}, podNode)
+				if err != nil {
+					time.Sleep(time.Second * 3)
+					continue
+				}
+
 				for _, address := range podNode.Status.Addresses {
 					if address.Type == corev1.NodeExternalIP && address.Address != "" {
 						podNodeAddress = address.Address
@@ -169,6 +175,12 @@ func (c PeerCollector) addExternalAddress(ctx context.Context, peers Peers, crd 
 					} else if address.Type == corev1.NodeInternalIP && address.Address != "" {
 						podNodeAddress = address.Address
 					}
+				}
+				if podNodeAddress == "" {
+					time.Sleep(time.Second * 1)
+					continue
+				} else {
+					break
 				}
 			}
 		}
