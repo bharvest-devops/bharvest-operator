@@ -8,6 +8,7 @@ import (
 	"net"
 	"sort"
 	"strconv"
+	"time"
 
 	cosmosv1 "github.com/bharvest-devops/cosmos-operator/api/v1"
 	"github.com/bharvest-devops/cosmos-operator/internal/kube"
@@ -152,7 +153,39 @@ func (c PeerCollector) addExternalAddress(ctx context.Context, peers Peers, crd 
 		info := peers[objKey]
 		info.hasExternalAddress = true
 		defer func() { peers[objKey] = info }()
-		externalAddress, err := GetExternalAddress(svc)
+
+		pod := &corev1.Pod{}
+		podNode := &corev1.Node{}
+
+		// Retrieve all Nodes in the cluster
+		err := c.client.Get(ctx, client.ObjectKey{Name: instanceName(crd, ordinal), Namespace: crd.Namespace}, pod)
+		var podNodeAddress string
+		if err == nil {
+			for i := 0; i < 3; i++ {
+				err = c.client.Get(ctx, client.ObjectKey{Name: pod.Spec.NodeName}, podNode)
+				if err != nil {
+					time.Sleep(time.Second * 3)
+					continue
+				}
+
+				for _, address := range podNode.Status.Addresses {
+					if address.Type == corev1.NodeExternalIP && address.Address != "" {
+						podNodeAddress = address.Address
+						break
+					} else if address.Type == corev1.NodeInternalIP && address.Address != "" {
+						podNodeAddress = address.Address
+					}
+				}
+				if podNodeAddress == "" {
+					time.Sleep(time.Second * 1)
+					continue
+				} else {
+					break
+				}
+			}
+		}
+
+		externalAddress, err := GetExternalAddress(svc, podNodeAddress)
 		if err != nil {
 			return err
 		}
@@ -164,7 +197,7 @@ func (c PeerCollector) addExternalAddress(ctx context.Context, peers Peers, crd 
 	return nil
 }
 
-func GetExternalAddress(svc corev1.Service) (string, error) {
+func GetExternalAddress(svc corev1.Service, externalIP string) (string, error) {
 	if svc.Spec.Type == corev1.ServiceTypeLoadBalancer {
 
 		ingress := svc.Status.LoadBalancer.Ingress
@@ -179,13 +212,14 @@ func GetExternalAddress(svc corev1.Service) (string, error) {
 		}
 	} else if svc.Spec.Type == corev1.ServiceTypeNodePort {
 
-		resp, err := resty.New().R().
-			Get("http://ipv4.icanhazip.com")
-		var externalIP string
-		if err != nil || resp.IsError() {
-			return "", err
-		} else {
-			externalIP = resp.String()
+		if externalIP == "" {
+			resp, err := resty.New().R().
+				Get("http://ipv4.icanhazip.com")
+			if err != nil || resp.IsError() {
+				return "", err
+			} else {
+				externalIP = resp.String()
+			}
 		}
 
 		var nodePort int32
