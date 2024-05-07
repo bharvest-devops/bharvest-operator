@@ -186,6 +186,8 @@ func (c PeerCollector) addExternalAddress(ctx context.Context, peers Peers, crd 
 					break
 				}
 			}
+		} else {
+			return kube.TransientError(err)
 		}
 
 		externalAddress, err := GetExternalAddress(svc, podNodeAddress)
