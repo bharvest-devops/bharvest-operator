@@ -164,6 +164,7 @@ func (c PeerCollector) addExternalAddress(ctx context.Context, peers Peers, crd 
 				err = c.client.Get(ctx, client.ObjectKey{Name: pod.Spec.NodeName}, podNode)
 				if err != nil {
 					time.Sleep(time.Second * 3)
+					i--
 					continue
 				}
 
