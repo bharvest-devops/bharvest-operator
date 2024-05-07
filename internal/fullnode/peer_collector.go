@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"github.com/go-resty/resty/v2"
 	"net"
 	"sort"
 	"strconv"
@@ -174,10 +173,13 @@ func (c PeerCollector) addExternalAddress(ctx context.Context, peers Peers, crd 
 						break
 					} else if address.Type == corev1.NodeInternalIP && address.Address != "" {
 						podNodeAddress = address.Address
+					} else if address.Address != "" && podNodeAddress == "" {
+						podNodeAddress = address.Address
 					}
 				}
 				if podNodeAddress == "" {
-					time.Sleep(time.Second * 1)
+					time.Sleep(time.Second * 3)
+					i--
 					continue
 				} else {
 					break
@@ -211,16 +213,6 @@ func GetExternalAddress(svc corev1.Service, externalIP string) (string, error) {
 			return net.JoinHostPort(host, strconv.Itoa(p2pPort)), nil
 		}
 	} else if svc.Spec.Type == corev1.ServiceTypeNodePort {
-
-		if externalIP == "" {
-			resp, err := resty.New().R().
-				Get("http://ipv4.icanhazip.com")
-			if err != nil || resp.IsError() {
-				return "", err
-			} else {
-				externalIP = resp.String()
-			}
-		}
 
 		var nodePort int32
 		for _, i := range svc.Spec.Ports {
