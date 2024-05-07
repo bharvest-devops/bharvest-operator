@@ -3,7 +3,6 @@ package fullnode
 import (
 	"context"
 	"errors"
-	"github.com/go-resty/resty/v2"
 	"testing"
 
 	cosmosv1 "github.com/bharvest-devops/cosmos-operator/api/v1"
@@ -103,12 +102,6 @@ func TestPeerCollector_Collect(t *testing.T) {
 		secret := res[0].Object()
 		secret.Data[nodeKeyFile] = []byte(nodeKey)
 
-		c := resty.New()
-		resp, err := c.R().
-			Get("https://ipv4.icanhazip.com")
-
-		externalIP := resp.String()
-
 		getter := mockGetter(func(ctx context.Context, key client.ObjectKey, obj client.Object, opts ...client.GetOption) error {
 			switch ref := obj.(type) {
 			case *corev1.Secret:
@@ -129,6 +122,15 @@ func TestPeerCollector_Collect(t *testing.T) {
 					svc.Spec.Ports = append(svc.Spec.Ports, corev1.ServicePort{Port: 26656, Name: "p2p", NodePort: 30000})
 				}
 				*ref = svc
+			case *corev1.Node:
+				var node corev1.Node
+				node.Status.Addresses = []corev1.NodeAddress{
+					{
+						Type:    corev1.NodeInternalIP,
+						Address: "1.1.1.1",
+					},
+				}
+				*ref = node
 			}
 			return nil
 		})
@@ -152,15 +154,15 @@ func TestPeerCollector_Collect(t *testing.T) {
 		require.Equal(t, "1e23ce0b20ae2377925537cc71d1529d723bb892@host.example.com:26656", got.ExternalPeer())
 
 		got = peers[client.ObjectKey{Name: "dydx-3", Namespace: namespace}]
-		require.Equal(t, externalIP+":30000", got.ExternalAddress)
-		require.Equal(t, "1e23ce0b20ae2377925537cc71d1529d723bb892@"+externalIP+":30000", got.ExternalPeer())
+		require.Equal(t, "1.1.1.1:30000", got.ExternalAddress)
+		require.Equal(t, "1e23ce0b20ae2377925537cc71d1529d723bb892@1.1.1.1:30000", got.ExternalPeer())
 
 		require.True(t, peers.HasIncompleteExternalAddress())
 		want := []string{
 			"1e23ce0b20ae2377925537cc71d1529d723bb892@0.0.0.0:26656",
 			"1e23ce0b20ae2377925537cc71d1529d723bb892@1.2.3.4:26656",
 			"1e23ce0b20ae2377925537cc71d1529d723bb892@host.example.com:26656",
-			"1e23ce0b20ae2377925537cc71d1529d723bb892@" + externalIP + ":30000",
+			"1e23ce0b20ae2377925537cc71d1529d723bb892@1.1.1.1:30000",
 		}
 		require.ElementsMatch(t, want, peers.AllExternal())
 	})
