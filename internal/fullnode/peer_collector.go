@@ -155,6 +155,7 @@ func (c PeerCollector) addExternalAddress(ctx context.Context, peers Peers, crd 
 
 		pod := &corev1.Pod{}
 		podNode := &corev1.Node{}
+		var externalAddress string
 
 		// Retrieve all Nodes in the cluster
 		err := c.client.Get(ctx, client.ObjectKey{Name: instanceName(crd, ordinal), Namespace: crd.Namespace}, pod)
@@ -164,7 +165,6 @@ func (c PeerCollector) addExternalAddress(ctx context.Context, peers Peers, crd 
 				err = c.client.Get(ctx, client.ObjectKey{Name: pod.Spec.NodeName}, podNode)
 				if err != nil {
 					time.Sleep(time.Second * 3)
-					i--
 					continue
 				}
 
@@ -180,17 +180,18 @@ func (c PeerCollector) addExternalAddress(ctx context.Context, peers Peers, crd 
 				}
 				if podNodeAddress == "" {
 					time.Sleep(time.Second * 3)
-					i--
 					continue
 				} else {
 					break
 				}
 			}
-		} else {
-			return kube.TransientError(err)
 		}
 
-		externalAddress, err := GetExternalAddress(svc, podNodeAddress)
+		if podNodeAddress == "" {
+			podNodeAddress = "0.0.0.0"
+		}
+
+		externalAddress, err = GetExternalAddress(svc, podNodeAddress)
 		if err != nil {
 			return err
 		}
