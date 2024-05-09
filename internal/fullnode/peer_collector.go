@@ -4,10 +4,10 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"github.com/go-resty/resty/v2"
 	"net"
 	"sort"
 	"strconv"
+	"strings"
 	"time"
 
 	cosmosv1 "github.com/bharvest-devops/cosmos-operator/api/v1"
@@ -148,7 +148,25 @@ func (c PeerCollector) addExternalAddress(ctx context.Context, peers Peers, crd 
 
 	// Note: The externalIP defaults to spec.InstanceOverrides[instance].ExternalAddress.
 	// but If not set, it'll be set according to.
-	if (svc.Spec.Type == corev1.ServiceTypeLoadBalancer) || (svc.Spec.Type == corev1.ServiceTypeNodePort) {
+	if svc.Spec.Type == corev1.ServiceTypeLoadBalancer {
+		objKey := c.objectKey(crd, ordinal)
+		info := peers[objKey]
+		info.hasExternalAddress = true
+		defer func() { peers[objKey] = info }()
+		var (
+			externalAddress string
+			err             error
+		)
+
+		externalAddress, err = GetExternalAddress(svc, "")
+		if err != nil {
+			return err
+		}
+		info.ExternalAddress = externalAddress
+
+		return nil
+
+	} else if svc.Spec.Type == corev1.ServiceTypeNodePort {
 		objKey := c.objectKey(crd, ordinal)
 		info := peers[objKey]
 		info.hasExternalAddress = true
@@ -156,6 +174,7 @@ func (c PeerCollector) addExternalAddress(ctx context.Context, peers Peers, crd 
 
 		pod := &corev1.Pod{}
 		podNode := &corev1.Node{}
+		var externalAddress string
 
 		// Retrieve all Nodes in the cluster
 		err := c.client.Get(ctx, client.ObjectKey{Name: instanceName(crd, ordinal), Namespace: crd.Namespace}, pod)
@@ -174,10 +193,12 @@ func (c PeerCollector) addExternalAddress(ctx context.Context, peers Peers, crd 
 						break
 					} else if address.Type == corev1.NodeInternalIP && address.Address != "" {
 						podNodeAddress = address.Address
+					} else if address.Address != "" && podNodeAddress == "" {
+						podNodeAddress = address.Address
 					}
 				}
 				if podNodeAddress == "" {
-					time.Sleep(time.Second * 1)
+					time.Sleep(time.Second * 3)
 					continue
 				} else {
 					break
@@ -185,7 +206,23 @@ func (c PeerCollector) addExternalAddress(ctx context.Context, peers Peers, crd 
 			}
 		}
 
-		externalAddress, err := GetExternalAddress(svc, podNodeAddress)
+		if podNodeAddress == "" {
+			peer, _, isExists := lo.FindIndexOf(crd.Status.Peers, func(peer string) bool {
+				if strings.Contains(peer, info.NodeID) {
+					return true
+				} else {
+					return false
+				}
+			})
+			if isExists {
+				info.ExternalAddress = peer[strings.Index(peer, "@")+1:]
+				return nil
+			} else {
+				podNodeAddress = "0.0.0.0"
+			}
+		}
+
+		externalAddress, err = GetExternalAddress(svc, podNodeAddress)
 		if err != nil {
 			return err
 		}
@@ -211,16 +248,6 @@ func GetExternalAddress(svc corev1.Service, externalIP string) (string, error) {
 			return net.JoinHostPort(host, strconv.Itoa(p2pPort)), nil
 		}
 	} else if svc.Spec.Type == corev1.ServiceTypeNodePort {
-
-		if externalIP == "" {
-			resp, err := resty.New().R().
-				Get("http://ipv4.icanhazip.com")
-			if err != nil || resp.IsError() {
-				return "", err
-			} else {
-				externalIP = resp.String()
-			}
-		}
 
 		var nodePort int32
 		for _, i := range svc.Spec.Ports {

@@ -31,32 +31,36 @@ func SyncInfoStatus(
 	coll := collector.Collect(ctx, client.ObjectKeyFromObject(crd))
 
 	for _, item := range coll {
-		var (
-			stat cosmosv1.SyncInfoPodStatus
-		)
 		podName := item.GetPod().Name
+		var (
+			stat       cosmosv1.SyncInfoPodStatus
+			beforeStat = crd.Status.SyncInfo[podName]
+		)
 
 		stat.Timestamp = metav1.NewTime(item.Timestamp())
 
 		comet, err := item.GetStatus()
 		if err != nil {
 			stat.Error = ptr(err.Error())
-			status[podName] = &stat
-			continue
-		}
-		stat.Height = ptr(comet.LatestBlockHeight())
-		stat.InSync = ptr(!comet.Result.SyncInfo.CatchingUp)
-
-		beforeStat := crd.Status.SyncInfo[podName]
-
-		if beforeStat != nil &&
-			beforeStat.Height != nil &&
-			stat.Height != nil &&
-			*beforeStat.Height == *stat.Height &&
-			beforeStat.LastBlockTimestamp != *new(metav1.Time) {
-			stat.LastBlockTimestamp = beforeStat.LastBlockTimestamp
+			if beforeStat != nil {
+				stat.LastBlockTimestamp = beforeStat.LastBlockTimestamp
+			} else {
+				stat.LastBlockTimestamp = stat.Timestamp
+			}
 		} else {
-			stat.LastBlockTimestamp = stat.Timestamp
+
+			stat.Height = ptr(comet.LatestBlockHeight())
+			stat.InSync = ptr(!comet.Result.SyncInfo.CatchingUp)
+
+			if beforeStat != nil &&
+				beforeStat.Height != nil &&
+				stat.Height != nil &&
+				*beforeStat.Height == *stat.Height &&
+				beforeStat.LastBlockTimestamp != *new(metav1.Time) {
+				stat.LastBlockTimestamp = beforeStat.LastBlockTimestamp
+			} else {
+				stat.LastBlockTimestamp = stat.Timestamp
+			}
 		}
 
 		retainDuration := metav1.Duration{

@@ -309,8 +309,8 @@ func TestPodBuilder(t *testing.T) {
 
 		mergeConfig := pod.Spec.InitContainers[4]
 		// The order of config-merge arguments is important. Rightmost takes precedence.
-		require.Contains(t, mergeConfig.Args[1], `config-merge -f toml "$TMP_DIR/config.toml" "$OVERLAY_DIR/config-overlay.toml" > "$CONFIG_DIR/config.toml"`)
-		require.Contains(t, mergeConfig.Args[1], `config-merge -f toml "$TMP_DIR/app.toml" "$OVERLAY_DIR/app-overlay.toml" > "$CONFIG_DIR/app.toml`)
+		require.Contains(t, mergeConfig.Args[1], `config-merge -f toml -a overwrite "$TMP_DIR/config.toml" "$OVERLAY_DIR/config-overlay.toml" > "$CONFIG_DIR/config.toml"`)
+		require.Contains(t, mergeConfig.Args[1], `config-merge -f toml -a overwrite "$TMP_DIR/app.toml" "$OVERLAY_DIR/app-overlay.toml" > "$CONFIG_DIR/app.toml`)
 	})
 
 	t.Run("containers - configured home dir", func(t *testing.T) {
