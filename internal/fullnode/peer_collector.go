@@ -7,6 +7,7 @@ import (
 	"net"
 	"sort"
 	"strconv"
+	"strings"
 	"time"
 
 	cosmosv1 "github.com/bharvest-devops/cosmos-operator/api/v1"
@@ -147,7 +148,25 @@ func (c PeerCollector) addExternalAddress(ctx context.Context, peers Peers, crd 
 
 	// Note: The externalIP defaults to spec.InstanceOverrides[instance].ExternalAddress.
 	// but If not set, it'll be set according to.
-	if (svc.Spec.Type == corev1.ServiceTypeLoadBalancer) || (svc.Spec.Type == corev1.ServiceTypeNodePort) {
+	if svc.Spec.Type == corev1.ServiceTypeLoadBalancer {
+		objKey := c.objectKey(crd, ordinal)
+		info := peers[objKey]
+		info.hasExternalAddress = true
+		defer func() { peers[objKey] = info }()
+		var (
+			externalAddress string
+			err             error
+		)
+
+		externalAddress, err = GetExternalAddress(svc, "")
+		if err != nil {
+			return err
+		}
+		info.ExternalAddress = externalAddress
+
+		return nil
+
+	} else if svc.Spec.Type == corev1.ServiceTypeNodePort {
 		objKey := c.objectKey(crd, ordinal)
 		info := peers[objKey]
 		info.hasExternalAddress = true
@@ -188,7 +207,19 @@ func (c PeerCollector) addExternalAddress(ctx context.Context, peers Peers, crd 
 		}
 
 		if podNodeAddress == "" {
-			podNodeAddress = "0.0.0.0"
+			peer, _, isExists := lo.FindIndexOf(crd.Status.Peers, func(peer string) bool {
+				if strings.Contains(peer, info.NodeID) {
+					return true
+				} else {
+					return false
+				}
+			})
+			if isExists {
+				info.ExternalAddress = peer[strings.Index(peer, "@")+1:]
+				return nil
+			} else {
+				podNodeAddress = "0.0.0.0"
+			}
 		}
 
 		externalAddress, err = GetExternalAddress(svc, podNodeAddress)
