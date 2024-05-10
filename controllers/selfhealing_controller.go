@@ -95,24 +95,28 @@ func (r *SelfHealingReconciler) regeneratePVC(ctx context.Context, reporter kube
 		return
 	}
 
+	pvc := new(corev1.PersistentVolumeClaim)
+
+	// Find matching PVC to capture its actual capacity
+	name := fullnode.PVCName(pod)
+	key := client.ObjectKey{Namespace: pod.Namespace, Name: name}
+	if err := r.Client.Get(ctx, key, pvc); err != nil {
+		reporter.Info("PVC not exists ", pod.Name)
+		reporter.RecordError("PVCRegenerating", err)
+		return
+	}
+	if pvc.Status.Phase != corev1.ClaimBound {
+		return
+	}
+
 	regenPVC, err := r.pvcHealer.UpdatePodFailure(ctx, crd, pod.Name)
 	if err != nil {
 		reporter.Error(err, "Failed to update podFailureStatus")
 		reporter.RecordError("PVCRegenerating", err)
+		return
 	}
 
 	if regenPVC {
-		pvc := new(corev1.PersistentVolumeClaim)
-
-		// Find matching PVC to capture its actual capacity
-		name := fullnode.PVCName(pod)
-		key := client.ObjectKey{Namespace: pod.Namespace, Name: name}
-		if err := r.Client.Get(ctx, key, pvc); err != nil {
-			reporter.Error(err, "Failed to get pvc ", pod.Name)
-			reporter.RecordError("PVCRegenerating", err)
-			return
-		}
-
 		if err := r.Delete(ctx, pvc); err != nil {
 			reporter.Error(err, "Failed to delete pvc", pvc.Name)
 			reporter.RecordError("PVCRegenerating", err)

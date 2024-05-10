@@ -3,6 +3,7 @@ package fullnode
 import (
 	"context"
 	"errors"
+	"fmt"
 	"github.com/samber/lo"
 	"math"
 	"time"
@@ -135,39 +136,55 @@ func (healer PVCHealer) calcNextCapacity(current resource.Quantity, increase str
 }
 
 func (healer PVCHealer) UpdatePodFailure(ctx context.Context, crd *cosmosv1.CosmosFullNode, podName string) (bool, error) {
-	var regenPVCStatus map[string]*cosmosv1.RegenPVCStatus
-	if crd.Status.SelfHealing.RegenPVCStatus != nil {
-		regenPVCStatus = crd.Status.SelfHealing.RegenPVCStatus
-		if regenPVCStatus[podName].Phase != nil && *regenPVCStatus[podName].Phase == cosmosv1.RegenPVCPhaseRegeneratingPVC {
-			return false, nil
-		}
+	if crd == nil {
+		return false, fmt.Errorf("provided CosmosFullNode is nil")
 	}
 
-	currentRegenPVCStatus := regenPVCStatus[podName]
+	regenPVCStatus := crd.Status.SelfHealing.RegenPVCStatus
+	if regenPVCStatus == nil {
+		regenPVCStatus = make(map[string]*cosmosv1.RegenPVCStatus)
+		crd.Status.SelfHealing.RegenPVCStatus = regenPVCStatus
+	}
+
+	current, exists := regenPVCStatus[podName]
+	if !exists {
+		current = &cosmosv1.RegenPVCStatus{
+			Phase: ptr(cosmosv1.RegenPVCPhaseNotYet),
+		}
+		regenPVCStatus[podName] = current
+	}
 
 	now := metav1.NewTime(healer.now())
 
-	if currentRegenPVCStatus != nil {
-		currentRegenPVCStatus.FailureTimes = lo.FilterMap(currentRegenPVCStatus.FailureTimes, func(item metav1.Time, index int) (metav1.Time, bool) {
+	if current != nil {
+		current.FailureTimes = lo.FilterMap(current.FailureTimes, func(failureTime string, index int) (string, bool) {
 			collectionDuration := crd.Spec.SelfHeal.HeightDriftMitigation.RegeneratePVC.FailedCountCollectionDuration
-			if (item.Add(collectionDuration.Duration)).Before(now.Time) {
-				return metav1.Time{}, false
+			t, err := time.Parse(failureTime, "2006-01-02 15:04:05")
+			if err != nil {
+				return "", false
 			}
-			return item, true
+			if (t.Add(collectionDuration.Duration)).Before(now.Time) {
+				return "", false
+			}
+			return failureTime, true
 		})
 	} else {
-		currentRegenPVCStatus = new(cosmosv1.RegenPVCStatus)
-		currentRegenPVCStatus.Phase = ptr(cosmosv1.RegenPVCPhaseNotYet)
+		current = new(cosmosv1.RegenPVCStatus)
+		current.Phase = ptr(cosmosv1.RegenPVCPhaseNotYet)
 	}
 
-	currentRegenPVCStatus.FailureTimes = append(currentRegenPVCStatus.FailureTimes, now)
+	current.FailureTimes = append(current.FailureTimes, now.Format("2006-01-02 15:04:05"))
 
-	currentFailureCount := uint32(len(currentRegenPVCStatus.FailureTimes))
+	currentFailureCount := uint32(len(current.FailureTimes))
+	isOveredRegenThreshold := currentFailureCount > crd.Spec.SelfHeal.HeightDriftMitigation.RegeneratePVC.ThresholdCount
+	if isOveredRegenThreshold {
+		current.Phase = ptr(cosmosv1.RegenPVCPhaseRegeneratingPVC)
+	}
 
-	return currentFailureCount > crd.Spec.SelfHeal.HeightDriftMitigation.RegeneratePVC.ThresholdCount, healer.client.SyncUpdate(ctx, client.ObjectKeyFromObject(crd), func(status *cosmosv1.FullNodeStatus) {
+	return isOveredRegenThreshold, healer.client.SyncUpdate(ctx, client.ObjectKeyFromObject(crd), func(status *cosmosv1.FullNodeStatus) {
 		if status.SelfHealing.RegenPVCStatus == nil {
 			status.SelfHealing.RegenPVCStatus = map[string]*cosmosv1.RegenPVCStatus{}
 		}
-		status.SelfHealing.RegenPVCStatus[podName] = currentRegenPVCStatus
+		status.SelfHealing.RegenPVCStatus[podName] = current
 	})
 }

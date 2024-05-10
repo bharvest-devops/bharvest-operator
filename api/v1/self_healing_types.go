@@ -98,7 +98,7 @@ type SelfHealingStatus struct {
 }
 
 type RegenPVCStatus struct {
-	FailureTimes []metav1.Time `json:"podStartingFailureTimes"`
+	FailureTimes []string `json:"podStartingFailureTimes"`
 
 	// The phase of the controller.
 	Phase *RegenPVCPhase `json:"phase"`
