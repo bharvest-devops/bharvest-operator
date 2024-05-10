@@ -981,10 +981,8 @@ func (in *RegenPVCStatus) DeepCopyInto(out *RegenPVCStatus) {
 	*out = *in
 	if in.FailureTimes != nil {
 		in, out := &in.FailureTimes, &out.FailureTimes
-		*out = make([]metav1.Time, len(*in))
-		for i := range *in {
-			(*in)[i].DeepCopyInto(&(*out)[i])
-		}
+		*out = make([]string, len(*in))
+		copy(*out, *in)
 	}
 	if in.Phase != nil {
 		in, out := &in.Phase, &out.Phase

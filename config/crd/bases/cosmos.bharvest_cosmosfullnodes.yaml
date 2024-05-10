@@ -6614,7 +6614,6 @@ spec:
                           type: string
                         podStartingFailureTimes:
                           items:
-                            format: date-time
                             type: string
                           type: array
                       required:
