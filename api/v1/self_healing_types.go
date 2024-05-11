@@ -26,6 +26,19 @@ type SelfHealSpec struct {
 	//
 	// +optional
 	HeightDriftMitigation *HeightDriftMitigationSpec `json:"heightDriftMitigation"`
+
+	// PruningSpec configures strategy of pruning.
+	//
+	// In node operating, the most important is reliable service.
+	// but to achieve this, you should resize disks when the node's disk size almost fulled.
+	// or you can prune node every interval.
+	//
+	// This configuration supports you to prune nodes without manual tasks, through job will be run automatically at the same time every day.
+	//
+	// If you configure this, it'll be run before autoScaling pvc.
+	//
+	// +optional
+	PruningSpec *PruningSpec `json:"pruningSpec"`
 }
 
 type PVCAutoScaleSpec struct {
@@ -65,7 +78,7 @@ type HeightDriftMitigationSpec struct {
 	// +kubebuilder:validation:Type=string
 	// +kubebuilder:validation:Schemaless
 	// +optional
-	ThresholdTime metav1.Duration `json:"thresholdTime"`
+	MaxHeightRetentionTime metav1.Duration `json:"maxHeightRetentionTime"`
 
 	// RegeneratePVC specifies if delete pvc according to pods' starting failure count.
 	// In most cases, unhealthy status involves invalid volume contents not only pod(computing resource); like containing appHash record.
@@ -89,10 +102,12 @@ type RegeneratePVCSpec struct {
 
 type SelfHealingStatus struct {
 	// PVC auto-scaling status.
+	// +mapType:=granular
 	// +optional
 	PVCAutoScale map[string]*PVCAutoScaleStatus `json:"pvcAutoScaler"`
 
 	// Re-generate PVC status.
+	// +mapType:=granular
 	// +optional
 	RegenPVCStatus map[string]*RegenPVCStatus `json:"regenPVCStatus"`
 }
