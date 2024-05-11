@@ -122,12 +122,12 @@ type FullNodeStatus struct {
 	// +optional
 	StatusMessage *string `json:"status"`
 
-	// Set by the ScheduledVolumeSnapshotController. Used to signal the CosmosFullNode to modify its
-	// resources during VolumeSnapshot creation.
-	// Map key is the source ScheduledVolumeSnapshot CRD that created the status.
+	// Set by the controller which deal with pods in fullnode. Used to signal the CosmosFullNode to modify its
+	// resources during VolumeSnapshot creation, or pruning.
+	// Commonly, it doesn't contain any entry but while task proceeding, it'll have pod's information which is taken.
 	// +optional
 	// +mapType:=granular
-	ScheduledSnapshotStatus map[string]FullNodeSnapshotStatus `json:"scheduledSnapshotStatus"`
+	WorkingPodElectionStatus map[string]WorkingPodElectionStatus `json:"workingPodElectionStatus"`
 
 	// Status set by the SelfHealing controller.
 	// +optional
@@ -167,8 +167,8 @@ type SyncInfoPodStatus struct {
 	HeightRetainTime *metav1.Duration `json:"heightRetainTime,omitempty"`
 }
 
-type FullNodeSnapshotStatus struct {
-	// Which pod name to temporarily delete. Indicates a ScheduledVolumeSnapshot is taking place. For optimal data
+type WorkingPodElectionStatus struct {
+	// Which pod name to temporarily delete. Indicates a ScheduledVolumeSnapshot or Pruner is taking place. For optimal data
 	// integrity, pod is temporarily removed so PVC does not have any processes writing to it.
 	PodCandidate string `json:"podCandidate"`
 }
