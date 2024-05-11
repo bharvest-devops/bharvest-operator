@@ -136,8 +136,9 @@ func (healer PVCHealer) calcNextCapacity(current resource.Quantity, increase str
 }
 
 func (healer PVCHealer) UpdatePodFailure(ctx context.Context, crd *cosmosv1.CosmosFullNode, podName string) (bool, error) {
+	var joinedErr error
 	if crd == nil {
-		return false, fmt.Errorf("provided CosmosFullNode is nil")
+		return false, errors.Join(joinedErr, fmt.Errorf("provided CosmosFullNode is nil"))
 	}
 
 	regenPVCStatus := crd.Status.SelfHealing.RegenPVCStatus
@@ -181,7 +182,7 @@ func (healer PVCHealer) UpdatePodFailure(ctx context.Context, crd *cosmosv1.Cosm
 		current.Phase = ptr(cosmosv1.RegenPVCPhaseRegeneratingPVC)
 	}
 
-	return isOveredRegenThreshold, errors.Join(healer.client.SyncUpdate(ctx, client.ObjectKeyFromObject(crd), func(status *cosmosv1.FullNodeStatus) {
+	return isOveredRegenThreshold, errors.Join(joinedErr, healer.client.SyncUpdate(ctx, client.ObjectKeyFromObject(crd), func(status *cosmosv1.FullNodeStatus) {
 		if status.SelfHealing.RegenPVCStatus == nil {
 			status.SelfHealing.RegenPVCStatus = map[string]*cosmosv1.RegenPVCStatus{}
 		}
