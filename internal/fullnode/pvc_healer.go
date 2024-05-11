@@ -181,10 +181,10 @@ func (healer PVCHealer) UpdatePodFailure(ctx context.Context, crd *cosmosv1.Cosm
 		current.Phase = ptr(cosmosv1.RegenPVCPhaseRegeneratingPVC)
 	}
 
-	return isOveredRegenThreshold, healer.client.SyncUpdate(ctx, client.ObjectKeyFromObject(crd), func(status *cosmosv1.FullNodeStatus) {
+	return isOveredRegenThreshold, errors.Join(healer.client.SyncUpdate(ctx, client.ObjectKeyFromObject(crd), func(status *cosmosv1.FullNodeStatus) {
 		if status.SelfHealing.RegenPVCStatus == nil {
 			status.SelfHealing.RegenPVCStatus = map[string]*cosmosv1.RegenPVCStatus{}
 		}
 		status.SelfHealing.RegenPVCStatus[podName] = current
-	})
+	}))
 }
