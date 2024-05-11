@@ -100,6 +100,63 @@ type RegeneratePVCSpec struct {
 	ThresholdCount uint32 `json:"thresholdCount"`
 }
 
+// PruningSpec specifies whether you are going to prune data when node exceed threshold.
+// It's similar with PVCAutoScaling, but more efficient way to save disks.
+// Meanwhile, it could cause some non-reliable service providing.
+type PruningSpec struct {
+
+	// The percentage of used disk space required to trigger pruning.
+	// Example, if set to 80, autoscaling will not trigger until used space reaches >=80% of capacity.
+	// +kubebuilder:validation:Minimum=1
+	// +kubebuilder:validation:MaxSize=100
+	UsedSpacePercentage int32 `json:"usedSpacePercentage"`
+
+	// Path to data directory.
+	// If not set, defaults to /home/operator/${HomeDir}.
+	// +optional
+	DataDir string `json:"dataDir"`
+
+	// Blocks amount of blocks to keep on the node.
+	// If not set, defaults to 10.
+	// +kubebuilder
+	Blocks uint64 `json:"blocks"`
+
+	// Versions specifies amount of app state versions to keep on the node .
+	// If not set, defaults to 10.
+	// +kubebuilder:default:=10
+	Versions uint64 `json:"versions"`
+
+	// CosmosSDK specifies if prune CosmsoSDK app data.
+	// If not set, defaults to true.
+	CosmosSDK bool `json:"cosmosSDK"`
+
+	// Tendermint specifies if prune tendermint data including blockstore and state.
+	// If not set, defaults to true.
+	// +kubebuilder:default:=true
+	Tendermint bool `json:"tendermint"`
+
+	// TxIndex specifies if prune tx_index.db also.
+	// If not set, defaults to true.
+	// +kubebuilder:default:=true
+	TxIndex bool `json:"txIndex"`
+
+	// Compact specifies whether compact dbs after pruning
+	// If not set, defaults to true.
+	// +kubebuilder:default:=true
+	Compact bool `json:"compact"`
+
+	// +kubebuilder:validation:=goleveldb;pebbledb
+	Backend DBBackend `json:"backend"`
+
+	// A resource storage quantity (e.g. 2000Gi).
+	// When increasing PVC capacity reaches >= MaxSize, autoscaling ceases.
+	// Safeguards against storage quotas and costs.
+	// +optional
+	MaxSize resource.Quantity `json:"maxSize"`
+}
+
+type DBBackend string
+
 type SelfHealingStatus struct {
 	// PVC auto-scaling status.
 	// +mapType:=granular
