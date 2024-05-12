@@ -27,6 +27,11 @@ func BuildPods(crd *cosmosv1.CosmosFullNode, cksums ConfigChecksums) ([]diff.Res
 		if _, shouldSnapshot := candidates[pod.Name]; shouldSnapshot {
 			continue
 		}
+		if prunerPod := podPruner(crd, pod).BuildPruningContainer(crd); prunerPod != nil {
+			pods = append(pods, diff.Adapt(prunerPod, i))
+			continue
+		}
+
 		if len(crd.Spec.ChainSpec.Versions) > 0 {
 			instanceHeight := uint64(0)
 			if height, ok := crd.Status.Height[pod.Name]; ok {
@@ -91,3 +96,15 @@ func podCandidates(crd *cosmosv1.CosmosFullNode) map[string]struct{} {
 	}
 	return candidates
 }
+
+func podPruner(crd *cosmosv1.CosmosFullNode, pod *corev1.Pod) *PrunerPod {
+	for _, p := range crd.Status.SelfHealing.CosmosPruningStatus.Candidates {
+		if pod.Name == p.PodName && pod.Namespace == p.Namespace {
+			prunerPod := PrunerPod(*pod)
+			return ptr(prunerPod)
+		}
+	}
+	return nil
+}
+
+type PrunerPod corev1.Pod

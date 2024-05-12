@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"github.com/bharvest-devops/cosmos-operator/internal/prune"
 	"path"
 	"strings"
 	"sync"
@@ -651,4 +652,34 @@ func PVCName(pod *corev1.Pod) string {
 		return ""
 	}
 	return found.PersistentVolumeClaim.ClaimName
+}
+
+const PRUNING_POD_IMAGE_DEFAULT = "ghcr.io/bharvest-devops/cosmos-pruner:latest"
+
+func (p *PrunerPod) BuildPruningContainer(crd *cosmosv1.CosmosFullNode) *corev1.Pod {
+	if p == nil {
+		return nil
+	}
+
+	var (
+		pruningImage = crd.Spec.SelfHeal.PruningSpec.Image
+	)
+	if pruningImage == "" {
+		pruningImage = PRUNING_POD_IMAGE_DEFAULT
+	}
+
+	oldPod := ptr(corev1.Pod(*p)).DeepCopy()
+
+	p.Spec.InitContainers = nil
+	p.Name = prune.GetPrunerPodName(p.Name)
+	p.Spec.Containers = []corev1.Container{
+		{
+			Name:         prune.GetPrunerPodName(p.Name),
+			Image:        pruningImage,
+			VolumeMounts: oldPod.Spec.Containers[0].VolumeMounts,
+		},
+	}
+
+	newPod := corev1.Pod(*p)
+	return ptr(newPod)
 }
