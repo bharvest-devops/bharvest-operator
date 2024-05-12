@@ -3,10 +3,11 @@ package prune
 import (
 	"context"
 	"errors"
+	"fmt"
+	"github.com/bharvest-devops/cosmos-operator/internal/fullnode"
 	"testing"
 
 	cosmosv1 "github.com/bharvest-devops/cosmos-operator/api/v1"
-	cosmosalpha "github.com/bharvest-devops/cosmos-operator/api/v1alpha1"
 	"github.com/stretchr/testify/require"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -22,7 +23,7 @@ func (fn mockStatusSyncer) SyncUpdate(ctx context.Context, key client.ObjectKey,
 	return fn(ctx, key, update)
 }
 
-var nopSyncer = mockStatusSyncer(func(ctx context.Context, key client.ObjectKey, update func(status *cosmosv1.FullNodeStatus)) error {
+var nopStatusSyncer = mockStatusSyncer(func(ctx context.Context, key client.ObjectKey, update func(status *cosmosv1.FullNodeStatus)) error {
 	return nil
 })
 
@@ -66,48 +67,293 @@ func TestFullNodeControl_SignalPodReplace(t *testing.T) {
 
 	ctx := context.Background()
 
-	var crd
-	crd.Namespace = "default/" // Tests for slash stripping.
-	crd.Name = "my-snapshot"
-	crd.Spec.FullNodeRef.Name = "my-node"
-	crd.Status.Candidate = &cosmosalpha.SnapshotCandidate{
-		PodName: "target-pod",
-	}
+	var crd cosmosv1.CosmosFullNode
+	crd.Namespace = "default" // Tests for slash stripping.
+	crd.Name = "cosmoshub"
 
 	t.Run("happy path", func(t *testing.T) {
-		var didSync bool
 		syncer := mockStatusSyncer(func(ctx context.Context, key client.ObjectKey, update func(status *cosmosv1.FullNodeStatus)) error {
-			require.Equal(t, "my-node", key.Name)
-			require.Equal(t, "default/", key.Namespace)
+			require.Equal(t, "default/cosmoshub", key.String())
 
 			var got cosmosv1.FullNodeStatus
-			update(&got)
-			want := map[string]cosmosv1.FullNodeSnapshotStatus{
-				"default.my-snapshot.v1alpha1.cosmos.bharvest": {PodCandidate: "target-pod"},
-			}
-			require.Equal(t, want, got.ScheduledSnapshotStatus)
 
-			didSync = true
+			update(&got)
+
+			candidateKey := "default.cosmoshub-0.v1.cosmos.bharvest"
+
+			require.Equal(t,
+				cosmosv1.PruningCandidate{
+					PodName:   "cosmoshub-0",
+					Namespace: "default",
+				},
+				got.SelfHealing.CosmosPruningStatus.Candidates[candidateKey])
+
 			return nil
 		})
 
-		control := NewFullNodeControl(syncer, nopReader)
-		err := control.SignalPodReplace(ctx, &crd)
+		reader := mockReader{
+			Getter: func(ctx context.Context, key client.ObjectKey, obj client.Object, opts ...client.GetOption) error {
+				return nil
+			},
+			Lister: func(ctx context.Context, list client.ObjectList, opts ...client.ListOption) error {
+				return nil
+			},
+		}
+
+		control := NewFullNodeControl(syncer, reader)
+		candidates := []*corev1.Pod{
+			{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "cosmoshub-0",
+					Namespace: "default",
+				},
+			},
+		}
+
+		err := control.SignalPodReplace(ctx, &crd, candidates)
 
 		require.NoError(t, err)
-		require.True(t, didSync)
 	})
 
-	t.Run("patch failed", func(t *testing.T) {
+	t.Run("signal failed", func(t *testing.T) {
 		syncer := mockStatusSyncer(func(ctx context.Context, key client.ObjectKey, update func(status *cosmosv1.FullNodeStatus)) error {
 			return errors.New("boom")
 		})
 
+		candidates := []*corev1.Pod{
+			{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "cosmoshub-0",
+					Namespace: "default",
+				},
+			},
+		}
+
 		control := NewFullNodeControl(syncer, nopReader)
-		err := control.SignalPodReplace(ctx, &crd)
+		err := control.SignalPodReplace(ctx, &crd, candidates)
 
 		require.Error(t, err)
 		require.EqualError(t, err, "boom")
+	})
+}
+
+func TestFullNodeControl_ConfirmPodReplaced(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+
+	var crd cosmosv1.CosmosFullNode
+	crd.Name = "cosmoshub"
+	crd.Namespace = "default"
+
+	t.Run("happy path", func(t *testing.T) {
+
+		reader := mockReader{Lister: func(ctx context.Context, list client.ObjectList, opts ...client.ListOption) error {
+			list.(*corev1.PodList).Items = []corev1.Pod{
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name: fullnode.GetPrunerPodName("cosmoshub-0"),
+					},
+				},
+			}
+			return nil
+		}}
+
+		fullNodeControl := NewFullNodeControl(nopStatusSyncer, reader)
+
+		podName := "cosmoshub-0"
+		crd.Status.SelfHealing.CosmosPruningStatus = ptr(cosmosv1.CosmosPruningStatus{
+			Candidates: map[string]cosmosv1.PruningCandidate{
+				fullNodeControl.sourceKey(podName, crd.Namespace): {PodName: podName, Namespace: crd.Namespace},
+			},
+		})
+
+		err := fullNodeControl.ConfirmPodReplaced(ctx, ptr(crd))
+
+		require.NoError(t, err)
+	})
+
+	t.Run("failed path", func(t *testing.T) {
+		podName := "cosmoshub-0"
+
+		reader := mockReader{Lister: func(ctx context.Context, list client.ObjectList, opts ...client.ListOption) error {
+			list = ptr(corev1.PodList{
+				Items: []corev1.Pod{
+					{
+						ObjectMeta: metav1.ObjectMeta{
+							Name: podName,
+						},
+					},
+				},
+			})
+			return nil
+		}}
+
+		fullNodeControl := NewFullNodeControl(nopStatusSyncer, reader)
+
+		crd.Status.SelfHealing.CosmosPruningStatus = ptr(cosmosv1.CosmosPruningStatus{
+			Candidates: map[string]cosmosv1.PruningCandidate{
+				fullNodeControl.sourceKey(podName, crd.Namespace): {PodName: podName, Namespace: crd.Namespace},
+			},
+		})
+
+		err := fullNodeControl.ConfirmPodReplaced(ctx, ptr(crd))
+
+		require.Error(t, err, fmt.Sprintf("pod %s not replaced yet", podName))
+	})
+
+	t.Run("empty candidates path", func(t *testing.T) {
+		podName := "cosmoshub-0"
+
+		reader := mockReader{Lister: func(ctx context.Context, list client.ObjectList, opts ...client.ListOption) error {
+			list = ptr(corev1.PodList{
+				Items: []corev1.Pod{
+					{
+						ObjectMeta: metav1.ObjectMeta{
+							Name: podName,
+						},
+					},
+				},
+			})
+			return nil
+		}}
+
+		fullNodeControl := NewFullNodeControl(nopStatusSyncer, reader)
+
+		crd.Status.SelfHealing.CosmosPruningStatus = ptr(cosmosv1.CosmosPruningStatus{
+			Candidates: map[string]cosmosv1.PruningCandidate{},
+		})
+
+		err := fullNodeControl.ConfirmPodReplaced(ctx, ptr(crd))
+
+		require.Error(t, err, errors.New(NO_CANDIDATES_ERR))
+	})
+
+	t.Run("get error", func(t *testing.T) {
+		var reader mockReader
+		reader.Lister = func(ctx context.Context, list client.ObjectList, opts ...client.ListOption) error {
+			return errors.New("boom")
+		}
+
+		control := NewFullNodeControl(nopStatusSyncer, reader)
+		err := control.ConfirmPodReplaced(ctx, &crd)
+
+		require.Error(t, err)
+		require.EqualError(t, err, "list pods: boom")
+	})
+}
+
+func TestFullNodeControl_CheckPruningComplete(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+
+	var crd cosmosv1.CosmosFullNode
+	crd.Namespace = "default"
+	crd.Name = "cosmoshub"
+	candidatePodName := "cosmoshub-0"
+
+	t.Run("happy path", func(t *testing.T) {
+
+		read := mockReader{Lister: func(ctx context.Context, list client.ObjectList, opts ...client.ListOption) error {
+			list.(*corev1.PodList).Items = []corev1.Pod{
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name: fullnode.GetPrunerPodName(candidatePodName),
+					},
+					Status: corev1.PodStatus{
+						ContainerStatuses: []corev1.ContainerStatus{
+							{
+								State: corev1.ContainerState{
+									Terminated: ptr(corev1.ContainerStateTerminated{}),
+								},
+							},
+						},
+					},
+				},
+			}
+			return nil
+		}}
+
+		fullNodeControl := NewFullNodeControl(nopStatusSyncer, read)
+
+		crd.Status.SelfHealing.CosmosPruningStatus = ptr(cosmosv1.CosmosPruningStatus{
+			Candidates: map[string]cosmosv1.PruningCandidate{
+				fullNodeControl.sourceKey(candidatePodName, crd.Namespace): {
+					PodName:   candidatePodName,
+					Namespace: crd.Namespace,
+				},
+			},
+		})
+
+		ok, err := fullNodeControl.CheckPruningComplete(ctx, ptr(crd))
+		require.Equal(t, true, ok)
+
+		require.NoError(t, err)
+	})
+
+	t.Run("failed path", func(t *testing.T) {
+
+		read := mockReader{Lister: func(ctx context.Context, list client.ObjectList, opts ...client.ListOption) error {
+			list.(*corev1.PodList).Items = []corev1.Pod{
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      fullnode.GetPrunerPodName(candidatePodName),
+						Namespace: "default",
+					},
+					Spec: corev1.PodSpec{
+						Volumes: []corev1.Volume{
+							{
+								Name: "vol-chain-home",
+								VolumeSource: corev1.VolumeSource{
+									PersistentVolumeClaim: ptr(corev1.PersistentVolumeClaimVolumeSource{
+										ClaimName: "pvc-cosmoshub",
+									}),
+								},
+							},
+						},
+					},
+					Status: corev1.PodStatus{
+						ContainerStatuses: []corev1.ContainerStatus{
+							{
+								State: corev1.ContainerState{
+									Waiting:    nil,
+									Running:    nil,
+									Terminated: nil,
+								},
+							},
+						},
+					},
+				},
+			}
+
+			return nil
+		}}
+
+		fullNodeControl := NewFullNodeControl(nopStatusSyncer, read)
+
+		crd.Status.SelfHealing.CosmosPruningStatus = ptr(cosmosv1.CosmosPruningStatus{
+			Candidates: map[string]cosmosv1.PruningCandidate{
+				fullNodeControl.sourceKey(candidatePodName, crd.Namespace): {
+					PodName:   candidatePodName,
+					Namespace: crd.Namespace,
+				},
+			},
+		})
+
+		ok, err := fullNodeControl.CheckPruningComplete(ctx, &crd)
+
+		require.NoError(t, err)
+		require.Equal(t, false, ok)
+
+	})
+
+	t.Run("read failed", func(t *testing.T) {
+		control := NewFullNodeControl(nopStatusSyncer, nopReader)
+		ok, err := control.CheckPruningComplete(ctx, &crd)
+
+		require.Error(t, err)
+		require.Equal(t, false, ok)
 	})
 }
 
@@ -116,51 +362,64 @@ func TestFullNodeControl_SignalPodRestoration(t *testing.T) {
 
 	ctx := context.Background()
 
-	var crd cosmosalpha.ScheduledVolumeSnapshot
-	crd.Namespace = "default/" // Tests for slash stripping.
-	crd.Name = "my-snapshot"
-	crd.Spec.FullNodeRef.Name = "my-node"
-	crd.Status.Candidate = &cosmosalpha.SnapshotCandidate{
-		PodName: "target-pod",
-	}
+	var crd cosmosv1.CosmosFullNode
+	crd.Namespace = "default"
+	crd.Name = "cosmoshub"
 
 	t.Run("happy path", func(t *testing.T) {
-		var didSync bool
 		syncer := mockStatusSyncer(func(ctx context.Context, key client.ObjectKey, update func(status *cosmosv1.FullNodeStatus)) error {
-			require.Equal(t, "my-node", key.Name)
-			require.Equal(t, "default/", key.Namespace)
+			require.Equal(t, "default/cosmoshub", key.String())
 
 			var got cosmosv1.FullNodeStatus
-			got.ScheduledSnapshotStatus = map[string]cosmosv1.FullNodeSnapshotStatus{
-				"default.my-snapshot.v1alpha1.cosmos.bharvest": {PodCandidate: "target-pod"},
-			}
-			update(&got)
-			require.Empty(t, got.ScheduledSnapshotStatus)
 
-			got.ScheduledSnapshotStatus = map[string]cosmosv1.FullNodeSnapshotStatus{
-				"default.my-snapshot.v1alpha1.cosmos.bharvest":      {PodCandidate: "target-pod"},
-				"default.another-snapshot.v1alpha1.cosmos.bharvest": {PodCandidate: "another-pod"},
-			}
 			update(&got)
-			want := map[string]cosmosv1.FullNodeSnapshotStatus{
-				"default.another-snapshot.v1alpha1.cosmos.bharvest": {PodCandidate: "another-pod"},
-			}
-			require.Equal(t, want, got.ScheduledSnapshotStatus)
 
-			didSync = true
+			candidateKey := "default.cosmoshub-0.v1.cosmos.bharvest"
+
+			require.NotNil(t, got.SelfHealing.CosmosPruningStatus.Candidates[candidateKey])
+
 			return nil
 		})
 
 		control := NewFullNodeControl(syncer, nopReader)
-		err := control.SignalPodRestoration(ctx, &crd)
+		candidates := []*corev1.Pod{
+			{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "cosmoshub-0",
+					Namespace: "default",
+				},
+			},
+		}
+
+		err := control.SignalPodReplace(ctx, &crd, candidates)
 
 		require.NoError(t, err)
-		require.True(t, didSync)
 	})
 
-	t.Run("patch failed", func(t *testing.T) {
+	t.Run("candidates failed", func(t *testing.T) {
+
+		control := NewFullNodeControl(nopStatusSyncer, nopReader)
+		err := control.SignalPodRestoration(ctx, &crd)
+
+		require.Error(t, err)
+		require.EqualError(t, err, NO_CANDIDATES_ERR)
+	})
+
+	t.Run("signal failed", func(t *testing.T) {
 		syncer := mockStatusSyncer(func(ctx context.Context, key client.ObjectKey, update func(status *cosmosv1.FullNodeStatus)) error {
 			return errors.New("boom")
+		})
+
+		podName := "cosmoshub-0"
+		candidateName := "default." + crd.Name + "-0.v1.cosmos.bharvest"
+
+		crd.Status.SelfHealing.CosmosPruningStatus = ptr(cosmosv1.CosmosPruningStatus{
+			Candidates: map[string]cosmosv1.PruningCandidate{
+				candidateName: {
+					PodName:   podName,
+					Namespace: "default",
+				},
+			},
 		})
 
 		control := NewFullNodeControl(syncer, nopReader)
@@ -176,86 +435,18 @@ func TestFullNodeControl_ConfirmPodRestoration(t *testing.T) {
 
 	ctx := context.Background()
 
-	var crd cosmosalpha.ScheduledVolumeSnapshot
-	crd.Name = "snapshot"
+	var crd cosmosv1.CosmosFullNode
 	crd.Namespace = "default"
-	crd.Spec.FullNodeRef.Name = "cosmoshub"
-	crd.Status.Candidate = &cosmosalpha.SnapshotCandidate{
-		PodName: "target-pod",
-	}
+	crd.Name = "cosmoshub"
+	crd.Status.SelfHealing.CosmosPruningStatus = new(cosmosv1.CosmosPruningStatus)
+	crd.Status.SelfHealing.CosmosPruningStatus.Candidates = make(map[string]cosmosv1.PruningCandidate)
 
 	t.Run("happy path", func(t *testing.T) {
-		for _, tt := range []struct {
-			Status map[string]cosmosv1.FullNodeSnapshotStatus
-		}{
-			{nil},
-			{map[string]cosmosv1.FullNodeSnapshotStatus{
-				"should-not-be-a-match": {PodCandidate: "target-pod"},
-			}},
-		} {
-			var reader mockReader
-			reader.Getter = func(_ context.Context, key client.ObjectKey, obj client.Object, _ ...client.GetOption) error {
-				require.Equal(t, "cosmoshub", key.Name)
-				require.Equal(t, "default", key.Namespace)
-				require.IsType(t, &cosmosv1.CosmosFullNode{}, obj)
-				obj.(*cosmosv1.CosmosFullNode).Status.ScheduledSnapshotStatus = map[string]cosmosv1.FullNodeSnapshotStatus{
-					"should-not-be-a-match": {PodCandidate: "target-pod"},
-				}
-				return nil
-			}
-
-			control := NewFullNodeControl(nopSyncer, reader)
-
-			err := control.ConfirmPodRestoration(ctx, &crd)
-			require.NoError(t, err, tt)
-		}
-	})
-
-	t.Run("fullnode status not updated yet", func(t *testing.T) {
 		var reader mockReader
-		reader.Getter = func(_ context.Context, key client.ObjectKey, obj client.Object, _ ...client.GetOption) error {
-			obj.(*cosmosv1.CosmosFullNode).Status.ScheduledSnapshotStatus = map[string]cosmosv1.FullNodeSnapshotStatus{
-				"default.snapshot.v1alpha1.cosmos.bharvest": {PodCandidate: "target-pod"},
-			}
-			return nil
-		}
 
-		control := NewFullNodeControl(nopSyncer, reader)
-		err := control.ConfirmPodRestoration(ctx, &crd)
+		candidateKey := "default." + crd.Name + "-0.v1.cosmos.bharvest"
+		crd.Status.SelfHealing.CosmosPruningStatus.Candidates[candidateKey] = cosmosv1.PruningCandidate{PodName: fullnode.GetPrunerPodName(crd.Name + "-0"), Namespace: crd.Namespace}
 
-		require.Error(t, err)
-		require.EqualError(t, err, "pod target-pod not restored yet")
-	})
-
-	t.Run("get error", func(t *testing.T) {
-		var reader mockReader
-		reader.Getter = func(_ context.Context, key client.ObjectKey, obj client.Object, _ ...client.GetOption) error {
-			return errors.New("boom")
-		}
-
-		control := NewFullNodeControl(nopSyncer, reader)
-		err := control.ConfirmPodRestoration(ctx, &crd)
-
-		require.Error(t, err)
-		require.EqualError(t, err, "get CosmosFullNode: boom")
-	})
-}
-
-func TestFullNodeControl_ConfirmPodDeletion(t *testing.T) {
-	t.Parallel()
-
-	ctx := context.Background()
-
-	var crd cosmosalpha.ScheduledVolumeSnapshot
-	crd.Namespace = "default"
-	crd.Spec.FullNodeRef.Name = "cosmoshub"
-	crd.Status.Candidate = &cosmosalpha.SnapshotCandidate{
-		PodName: "target-pod",
-	}
-
-	t.Run("happy path", func(t *testing.T) {
-		var didList bool
-		var reader mockReader
 		reader.Lister = func(_ context.Context, list client.ObjectList, opts ...client.ListOption) error {
 			list.(*corev1.PodList).Items = []corev1.Pod{
 				{ObjectMeta: metav1.ObjectMeta{Name: "pod-1"}},
@@ -270,54 +461,21 @@ func TestFullNodeControl_ConfirmPodDeletion(t *testing.T) {
 			require.Equal(t, "default", listOpt.Namespace)
 			require.Zero(t, listOpt.Limit)
 			require.Equal(t, ".metadata.controller=cosmoshub", listOpt.FieldSelector.String())
-
-			didList = true
 			return nil
 		}
 
-		control := NewFullNodeControl(nopSyncer, reader)
+		control := NewFullNodeControl(nopStatusSyncer, reader)
 
-		err := control.ConfirmPodDeletion(ctx, &crd)
+		err := control.ConfirmPodRestoration(ctx, &crd)
 		require.NoError(t, err)
-
-		require.True(t, didList)
 	})
 
 	t.Run("happy path - no items", func(t *testing.T) {
-		control := NewFullNodeControl(nopSyncer, nopReader)
-		err := control.ConfirmPodDeletion(ctx, &crd)
-
-		require.NoError(t, err)
-	})
-
-	t.Run("pod not deleted yet", func(t *testing.T) {
-		var reader mockReader
-		reader.Lister = func(_ context.Context, list client.ObjectList, opts ...client.ListOption) error {
-			list.(*corev1.PodList).Items = []corev1.Pod{
-				{ObjectMeta: metav1.ObjectMeta{Name: "pod-1"}},
-				{ObjectMeta: metav1.ObjectMeta{Name: "target-pod"}},
-				{ObjectMeta: metav1.ObjectMeta{Name: "pod-2"}},
-			}
-			return nil
-		}
-
-		control := NewFullNodeControl(nopSyncer, reader)
-		err := control.ConfirmPodDeletion(ctx, &crd)
+		control := NewFullNodeControl(nopStatusSyncer, nopReader)
+		err := control.ConfirmPodRestoration(ctx, &crd)
 
 		require.Error(t, err)
-		require.EqualError(t, err, "pod target-pod not deleted yet")
+		require.EqualError(t, err, NO_CANDIDATES_ERR)
 	})
 
-	t.Run("list error", func(t *testing.T) {
-		var reader mockReader
-		reader.Lister = func(_ context.Context, list client.ObjectList, opts ...client.ListOption) error {
-			return errors.New("boom")
-		}
-
-		control := NewFullNodeControl(nopSyncer, reader)
-		err := control.ConfirmPodDeletion(ctx, &crd)
-
-		require.Error(t, err)
-		require.EqualError(t, err, "list pods: boom")
-	})
 }
