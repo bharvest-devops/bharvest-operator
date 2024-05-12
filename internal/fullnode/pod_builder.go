@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
-	"github.com/bharvest-devops/cosmos-operator/internal/prune"
 	"path"
 	"strings"
 	"sync"
@@ -671,10 +670,10 @@ func (p *PrunerPod) BuildPruningContainer(crd *cosmosv1.CosmosFullNode) *corev1.
 	oldPod := ptr(corev1.Pod(*p)).DeepCopy()
 
 	p.Spec.InitContainers = nil
-	p.Name = prune.GetPrunerPodName(p.Name)
+	p.Name = GetPrunerPodName(p.Name)
 	p.Spec.Containers = []corev1.Container{
 		{
-			Name:         prune.GetPrunerPodName(p.Name),
+			Name:         GetPrunerPodName(p.Name),
 			Image:        pruningImage,
 			VolumeMounts: oldPod.Spec.Containers[0].VolumeMounts,
 		},
@@ -682,4 +681,8 @@ func (p *PrunerPod) BuildPruningContainer(crd *cosmosv1.CosmosFullNode) *corev1.
 
 	newPod := corev1.Pod(*p)
 	return ptr(newPod)
+}
+
+func GetPrunerPodName(podName string) string {
+	return fmt.Sprintf("%s-%s", podName, "pruning")
 }
