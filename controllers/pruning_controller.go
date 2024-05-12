@@ -99,6 +99,13 @@ func (r *PruningReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 	}
 	status := crd.Status.SelfHealing.CosmosPruningStatus
 
+	for _, _ = range crd.Status.SelfHealing.CosmosPruningStatus.Candidates {
+		if status.CosmosPruningPhase == cosmosv1.CosmosPruningPhaseRestorePod || status.CosmosPruningPhase == cosmosv1.CosmosPruningPhaseConfirmPodRestoration {
+			break
+		}
+		status.CosmosPruningPhase = cosmosv1.CosmosPruningPhaseWaitingForComplete
+	}
+
 	switch status.CosmosPruningPhase {
 	case cosmosv1.CosmosPruningPhaseFindingCandidate:
 		usage, err := r.diskClient.CollectDiskUsage(ctx, crd)
@@ -135,7 +142,7 @@ func (r *PruningReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 			}
 			return retryResult, nil
 		}
-		crd.Status.SelfHealing.CosmosPruningStatus.CosmosPruningPhase = cosmosv1.CosmosPruningPhasePruning
+		crd.Status.SelfHealing.CosmosPruningStatus.CosmosPruningPhase = cosmosv1.CosmosPruningPhaseWaitingForComplete
 
 	case cosmosv1.CosmosPruningPhaseWaitingForComplete:
 		ready, err := r.fullNodeControl.CheckPruningComplete(ctx, crd)
