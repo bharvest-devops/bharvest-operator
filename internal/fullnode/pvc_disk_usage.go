@@ -50,6 +50,16 @@ func (c DiskUsageCollector) CollectDiskUsage(ctx context.Context, crd *cosmosv1.
 		return nil, fmt.Errorf("list pods: %w", err)
 	}
 
+	filteredItems := lo.FilterMap(pods.Items, func(item corev1.Pod, index int) (corev1.Pod, bool) {
+		if item.Status.Phase != corev1.PodRunning {
+			return corev1.Pod{}, false
+		} else {
+			return item, true
+		}
+	})
+
+	pods.Items = filteredItems
+
 	if len(pods.Items) == 0 {
 		return nil, errors.New("no pods found")
 	}
