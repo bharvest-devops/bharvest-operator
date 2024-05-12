@@ -2,7 +2,6 @@ package prune
 
 import (
 	"context"
-	"errors"
 	cosmosv1 "github.com/bharvest-devops/cosmos-operator/api/v1"
 	"github.com/bharvest-devops/cosmos-operator/internal/fullnode"
 	corev1 "k8s.io/api/core/v1"
@@ -24,11 +23,11 @@ func NewPruner(candidateCollector CandidateCollector) *Pruner {
 	}
 }
 
-func (p *Pruner) FindCandidate(ctx context.Context, crd *cosmosv1.CosmosFullNode, results []fullnode.PVCDiskUsage) (*corev1.Pod, error) {
+func (p *Pruner) FindCandidate(ctx context.Context, crd *cosmosv1.CosmosFullNode, results []fullnode.PVCDiskUsage) *corev1.Pod {
 	var spec = crd.Spec.SelfHeal.PruningSpec
 	if spec == nil {
 		// Pruning not work
-		return nil, nil
+		return nil
 	}
 
 	var trigger = int(spec.UsedSpacePercentage)
@@ -48,7 +47,7 @@ func (p *Pruner) FindCandidate(ctx context.Context, crd *cosmosv1.CosmosFullNode
 	)
 
 	if availCount <= 0 {
-		return nil, errors.New("there are no available pods to prune. pruning must be preceed for synced pods")
+		return nil
 	}
 
 	for _, pvc := range results {
@@ -62,8 +61,8 @@ func (p *Pruner) FindCandidate(ctx context.Context, crd *cosmosv1.CosmosFullNode
 			if fullnode.PVCName(pod) != pvc.Name {
 				continue
 			}
-			return pod, nil
+			return pod
 		}
 	}
-	return nil, nil
+	return nil
 }

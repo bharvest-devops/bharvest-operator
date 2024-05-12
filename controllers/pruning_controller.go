@@ -19,6 +19,7 @@ package controllers
 import (
 	"context"
 	"errors"
+	"fmt"
 	cosmosv1 "github.com/bharvest-devops/cosmos-operator/api/v1"
 	"github.com/bharvest-devops/cosmos-operator/internal/healthcheck"
 	"github.com/bharvest-devops/cosmos-operator/internal/prune"
@@ -90,7 +91,14 @@ func (r *PruningReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 
 	retryResult := ctrl.Result{RequeueAfter: 10 * time.Second}
 
+	if crd.Status.SelfHealing.CosmosPruningStatus == nil {
+		pruningStatus := cosmosv1.CosmosPruningStatus{
+			CosmosPruningPhase: cosmosv1.CosmosPruningPhaseFindingCandidate,
+		}
+		crd.Status.SelfHealing.CosmosPruningStatus = ptr(pruningStatus)
+	}
 	status := crd.Status.SelfHealing.CosmosPruningStatus
+
 	switch status.CosmosPruningPhase {
 	case cosmosv1.CosmosPruningPhaseFindingCandidate:
 		usage, err := r.diskClient.CollectDiskUsage(ctx, crd)
@@ -98,20 +106,18 @@ func (r *PruningReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 			reporter.Error(err, "Failed to collect pvc disk usage")
 			// This error can be noisy so we record a generic error. Check logs for error details.
 			reporter.RecordError("PVCPruning", errors.New("failed to collect pvc disk usage"))
-			return ctrl.Result{RequeueAfter: 1 * time.Minute}, err
+			return retryResult, err
 		}
 
 		var candidatePod *corev1.Pod
-		candidatePod, err = r.pruner.FindCandidate(ctx, crd, usage)
-		if err != nil {
-			reporter.Error(err, "Failed to elect candidate")
-			reporter.RecordError("PVCPruning", errors.New("Failed to elect candidate"))
-			return ctrl.Result{}, err
-		}
-
+		candidatePod = r.pruner.FindCandidate(ctx, crd, usage)
 		if candidatePod == nil {
 			return retryResult, nil
 		}
+
+		msg := fmt.Sprintf("Pruning candidate found: %s", candidatePod.Name)
+		reporter.Info(msg)
+		reporter.RecordInfo("PVCPruning", msg)
 
 		err = r.fullNodeControl.SignalPodReplace(ctx, crd, []*corev1.Pod{candidatePod})
 		if err != nil {
