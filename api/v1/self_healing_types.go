@@ -113,7 +113,7 @@ type PruningSpec struct {
 	UsedSpacePercentage int32 `json:"usedSpacePercentage"`
 
 	// The image url of you'll use for pruning.
-	// If not set, defaults to "ghcr.io/bharvest-devops/cosmos-pruner:latest
+	// If not set, defaults to "ghcr.io/bharvest-devops/cosmos-pruner:latest"
 	// command
 	// +optional
 	Image string `json:"image"`
@@ -149,7 +149,7 @@ type CosmosPruningStatus struct {
 	PodPruningStatus map[string]PodPruningStatus `json:"podPruningStatus"`
 
 	// The phase of the pruning.
-	CosmosPruningPhase CosmosPruningPhase
+	CosmosPruningPhase CosmosPruningPhase `json:"cosmosPruningPhase"`
 }
 
 type PruningCandidate struct {
@@ -197,7 +197,6 @@ type SelfHealingStatus struct {
 	RegenPVCStatus map[string]*RegenPVCStatus `json:"regenPVCStatus"`
 
 	// CosmosPruning status.
-	// +mapType:=granular
 	// +optional
 	CosmosPruningStatus *CosmosPruningStatus `json:"cosmosPruningStatus"`
 }
