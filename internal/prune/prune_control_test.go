@@ -79,9 +79,8 @@ func TestPruneControl_FindCandidate(t *testing.T) {
 
 		pruner := NewPruner(cacheController)
 
-		pod, err := pruner.FindCandidate(ctx, ptr(crd), defaultResults)
+		pod := pruner.FindCandidate(ctx, ptr(crd), defaultResults)
 
-		require.NoError(t, err)
 		require.Equal(t, "cosmoshub-1", pod.Name)
 	})
 
@@ -120,9 +119,8 @@ func TestPruneControl_FindCandidate(t *testing.T) {
 
 		pruner := NewPruner(cacheController)
 
-		pod, err := pruner.FindCandidate(ctx, ptr(crd), noExceededDiskUsages)
+		pod := pruner.FindCandidate(ctx, ptr(crd), noExceededDiskUsages)
 
-		require.NoError(t, err)
 		require.Nil(t, pod)
 	})
 
