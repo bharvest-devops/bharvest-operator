@@ -172,9 +172,6 @@ const (
 	// CosmosPruningPhaseWaitingForPodReplaced indicates controller is waiting for the fullNodeRef to delete the candidate pod.
 	CosmosPruningPhaseWaitingForPodReplaced CosmosPruningPhase = "WaitingForPodDeletion"
 
-	// CosmosPruningPhasePruning indicates controller found a candidate and will now create a VolumeSnapshot from the PVC.
-	CosmosPruningPhasePruning CosmosPruningPhase = "Pruning"
-
 	// CosmosPruningPhaseWaitingForComplete indicates controller is waiting for complete pruning.
 	CosmosPruningPhaseWaitingForComplete CosmosPruningPhase = "WaitingForComplete"
 
