@@ -79,6 +79,8 @@ func (r *PruningReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 
 	if crd.Spec.SelfHeal == nil {
 		return stopResult, nil
+	} else if crd.Spec.SelfHeal.PruningSpec == nil {
+		return stopResult, nil
 	}
 
 	defer func(Client client.Client, ctx context.Context, obj client.Object, opts ...client.UpdateOption) {
@@ -91,20 +93,9 @@ func (r *PruningReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 
 	retryResult := ctrl.Result{RequeueAfter: 10 * time.Second}
 
-	if crd.Status.SelfHealing.CosmosPruningStatus == nil {
-		pruningStatus := cosmosv1.CosmosPruningStatus{
-			CosmosPruningPhase: cosmosv1.CosmosPruningPhaseFindingCandidate,
-		}
-		crd.Status.SelfHealing.CosmosPruningStatus = ptr(pruningStatus)
-	}
+	// Check current phase is correct.
+	checkPhase(crd)
 	status := crd.Status.SelfHealing.CosmosPruningStatus
-
-	for _, _ = range crd.Status.SelfHealing.CosmosPruningStatus.Candidates {
-		if status.CosmosPruningPhase == cosmosv1.CosmosPruningPhaseRestorePod || status.CosmosPruningPhase == cosmosv1.CosmosPruningPhaseConfirmPodRestoration {
-			break
-		}
-		status.CosmosPruningPhase = cosmosv1.CosmosPruningPhaseWaitingForComplete
-	}
 
 	switch status.CosmosPruningPhase {
 	case cosmosv1.CosmosPruningPhaseFindingCandidate:
@@ -190,4 +181,21 @@ func (r *PruningReconciler) SetupWithManager(_ context.Context, mgr ctrl.Manager
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&cosmosv1.CosmosFullNode{}).
 		Complete(r)
+}
+
+func checkPhase(crd *cosmosv1.CosmosFullNode) {
+	var pruningStatus = crd.Status.SelfHealing.CosmosPruningStatus
+
+	if pruningStatus == nil {
+		pruningStatus = ptr(cosmosv1.CosmosPruningStatus{
+			CosmosPruningPhase: cosmosv1.CosmosPruningPhaseFindingCandidate,
+		})
+	}
+
+	if len(crd.Status.SelfHealing.CosmosPruningStatus.Candidates) != 0 &&
+		pruningStatus.CosmosPruningPhase != cosmosv1.CosmosPruningPhaseRestorePod && pruningStatus.CosmosPruningPhase != cosmosv1.CosmosPruningPhaseConfirmPodRestoration {
+		crd.Status.SelfHealing.CosmosPruningStatus.CosmosPruningPhase = cosmosv1.CosmosPruningPhaseWaitingForComplete
+	}
+
+	crd.Status.SelfHealing.CosmosPruningStatus = pruningStatus
 }
