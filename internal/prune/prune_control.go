@@ -7,34 +7,22 @@ import (
 	cosmosv1 "github.com/bharvest-devops/cosmos-operator/api/v1"
 	"github.com/bharvest-devops/cosmos-operator/internal/fullnode"
 	corev1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"time"
 )
 
 const cosmosSourceLabel = "cosmos.bharvest/source"
 
-// Client is a subset of client.Client.
-type Client interface {
-	Create(ctx context.Context, obj client.Object, opts ...client.CreateOption) error
-	List(ctx context.Context, list client.ObjectList, opts ...client.ListOption) error
-	Delete(ctx context.Context, obj client.Object, opts ...client.DeleteOption) error
-	Scheme() *runtime.Scheme
-}
-
 type CandidateCollector interface {
 	SyncedPods(ctx context.Context, controller client.ObjectKey) []*corev1.Pod
 }
 
 type Pruner struct {
-	client             Client
 	candidateCollector CandidateCollector
-	builder            func() error
 }
 
-func NewPruner(client Client, candidateCollector CandidateCollector) *Pruner {
+func NewPruner(candidateCollector CandidateCollector) *Pruner {
 	return &Pruner{
-		client:             client,
 		candidateCollector: candidateCollector,
 	}
 }
