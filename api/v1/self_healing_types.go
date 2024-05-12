@@ -5,8 +5,9 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-// SelfHealingController is the canonical controller name.
+// SelfHealingController, PruningController are the canonical controller name.
 const SelfHealingController = "SelfHealing"
+const PruningController = "Pruning"
 
 // SelfHealSpec is part of a CosmosFullNode but is managed by a separate controller, SelfHealingReconciler.
 // This is an effort to reduce complexity in the CosmosFullNodeReconciler.
@@ -111,51 +112,78 @@ type PruningSpec struct {
 	// +kubebuilder:validation:MaxSize=100
 	UsedSpacePercentage int32 `json:"usedSpacePercentage"`
 
-	// Path to data directory.
-	// If not set, defaults to /home/operator/${HomeDir}.
+	// The image url of you'll use for pruning.
+	// If not set, defaults to "ghcr.io/bharvest-devops/cosmos-pruner:latest
+	// command
 	// +optional
-	DataDir string `json:"dataDir"`
+	Image string `json:"image"`
 
-	// Blocks amount of blocks to keep on the node.
-	// If not set, defaults to 10.
-	// +kubebuilder
-	Blocks uint64 `json:"blocks"`
-
-	// Versions specifies amount of app state versions to keep on the node .
-	// If not set, defaults to 10.
-	// +kubebuilder:default:=10
-	Versions uint64 `json:"versions"`
-
-	// CosmosSDK specifies if prune CosmsoSDK app data.
-	// If not set, defaults to true.
-	CosmosSDK bool `json:"cosmosSDK"`
-
-	// Tendermint specifies if prune tendermint data including blockstore and state.
-	// If not set, defaults to true.
-	// +kubebuilder:default:=true
-	Tendermint bool `json:"tendermint"`
-
-	// TxIndex specifies if prune tx_index.db also.
-	// If not set, defaults to true.
-	// +kubebuilder:default:=true
-	TxIndex bool `json:"txIndex"`
-
-	// Compact specifies whether compact dbs after pruning
-	// If not set, defaults to true.
-	// +kubebuilder:default:=true
-	Compact bool `json:"compact"`
-
-	// +kubebuilder:validation:=goleveldb;pebbledb
-	Backend DBBackend `json:"backend"`
-
-	// A resource storage quantity (e.g. 2000Gi).
-	// When increasing PVC capacity reaches >= MaxSize, autoscaling ceases.
-	// Safeguards against storage quotas and costs.
+	// The description of shell used in pruning.
+	// pruning will be process with "/bin/sh" cmd for flexibility.
+	// And also it'll be used as args at 2nd like below;
+	// args:
+	//    - "-c"
+	//    - "cosmos-pruner prune /home/operator/cosmos/data/ -b=0 ....
+	//
+	// If not set, it'll be set as default options.
+	//   -b=0 # every blocks in tendermint data (also tx_index if you set true --tx_index) will be pruned.
+	//   -v=0 # every versions in cosmos app will be pruned.
+	//   --tx_index=true # prune also tx_index
+	//   --compact=true # compact golevelDB after pruning
+	//   --cosmos-sdk=true # pruning also cosmos app data
+	//
 	// +optional
-	MaxSize resource.Quantity `json:"maxSize"`
+	PruningCommand string `json:"pruningCommand"`
 }
 
 type DBBackend string
+
+// CosmosPruningStatus shows status of process for pruning.
+type CosmosPruningStatus struct {
+
+	// Candidates describes what pod is currently pruning.
+	// +optional
+	Candidates map[string]PruningCandidate `json:"candidate"`
+
+	// +optional
+	PodPruningStatus map[string]PodPruningStatus `json:"podPruningStatus"`
+
+	// The phase of the pruning.
+	CosmosPruningPhase CosmosPruningPhase
+}
+
+type PruningCandidate struct {
+	PodName   string `json:"podName"`
+	Namespace string `json:"namespace"`
+}
+
+type PodPruningStatus struct {
+	// LastPruned shows when does pod pruned.
+	// +optional
+	LastPruneTime *metav1.Time `json:"lastPruned"`
+}
+
+type CosmosPruningPhase string
+
+const (
+	// CosmosPruningPhaseFindingCandidate indicates it is waiting for exceeding of threshold, and also finding candidates.
+	CosmosPruningPhaseFindingCandidate CosmosPruningPhase = "FindingCandidate"
+
+	// CosmosPruningPhaseWaitingForPodReplaced indicates controller is waiting for the fullNodeRef to delete the candidate pod.
+	CosmosPruningPhaseWaitingForPodReplaced CosmosPruningPhase = "WaitingForPodDeletion"
+
+	// CosmosPruningPhasePruning indicates controller found a candidate and will now create a VolumeSnapshot from the PVC.
+	CosmosPruningPhasePruning CosmosPruningPhase = "Pruning"
+
+	// CosmosPruningPhaseWaitingForComplete indicates controller is waiting for complete pruning.
+	CosmosPruningPhaseWaitingForComplete CosmosPruningPhase = "WaitingForComplete"
+
+	// CosmosPruningPhaseRestorePod signals the fullNodeRef it can recreate the temporarily deleted pod.
+	CosmosPruningPhaseRestorePod CosmosPruningPhase = "RestoringPod"
+
+	// CosmosPruningPhaseConfirmPodRestoration confirms if pod is restored on cosmosFullNode
+	CosmosPruningPhaseConfirmPodRestoration CosmosPruningPhase = "ConfirmPodRestoration"
+)
 
 type SelfHealingStatus struct {
 	// PVC auto-scaling status.
@@ -163,10 +191,15 @@ type SelfHealingStatus struct {
 	// +optional
 	PVCAutoScale map[string]*PVCAutoScaleStatus `json:"pvcAutoScaler"`
 
-	// Re-generate PVC status.
+	// Re-generating PVC status.
 	// +mapType:=granular
 	// +optional
 	RegenPVCStatus map[string]*RegenPVCStatus `json:"regenPVCStatus"`
+
+	// CosmosPruning status.
+	// +mapType:=granular
+	// +optional
+	CosmosPruningStatus *CosmosPruningStatus `json:"cosmosPruningStatus"`
 }
 
 type RegenPVCStatus struct {
