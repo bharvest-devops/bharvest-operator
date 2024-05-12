@@ -56,7 +56,7 @@ func NewPruningReconciler(
 		Client:          client,
 		diskClient:      fullnode.NewDiskUsageCollector(healthcheck.NewClient(httpClient), client),
 		recorder:        recorder,
-		pruner:          prune.NewPruner(client, cacheController),
+		pruner:          prune.NewPruner(cacheController),
 		fullNodeControl: prune.NewFullNodeControl(statusClient, client),
 	}
 }

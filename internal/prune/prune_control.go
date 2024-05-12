@@ -11,8 +11,6 @@ import (
 	"time"
 )
 
-const cosmosSourceLabel = "cosmos.bharvest/source"
-
 type CandidateCollector interface {
 	SyncedPods(ctx context.Context, controller client.ObjectKey) []*corev1.Pod
 }
