@@ -660,11 +660,18 @@ func (p *PrunerPod) BuildPruningContainer(crd *cosmosv1.CosmosFullNode) *corev1.
 		return nil
 	}
 
+	if crd.Spec.SelfHeal.PruningSpec == nil {
+		return nil
+	}
 	var (
-		pruningImage = crd.Spec.SelfHeal.PruningSpec.Image
+		pruningImage   = crd.Spec.SelfHeal.PruningSpec.Image
+		pruningCommand = crd.Spec.SelfHeal.PruningSpec.PruningCommand
 	)
 	if pruningImage == "" {
 		pruningImage = PRUNING_POD_IMAGE_DEFAULT
+	}
+	if pruningCommand == "" {
+		pruningCommand = "cosmos-pruner prune /home/operator/cosmos/data/ -b=0 -v=0 --tx_index=true --compact=true --cosmos-sdk=true 2>&1"
 	}
 
 	oldPod := ptr(corev1.Pod(*p)).DeepCopy()
@@ -675,6 +682,9 @@ func (p *PrunerPod) BuildPruningContainer(crd *cosmosv1.CosmosFullNode) *corev1.
 		{
 			Name:         GetPrunerPodName(p.Name),
 			Image:        pruningImage,
+			Command:      []string{"/bin/sh"},
+			Args:         []string{"-c", pruningCommand},
+			WorkingDir:   "/home/operator",
 			VolumeMounts: oldPod.Spec.Containers[0].VolumeMounts,
 		},
 	}
