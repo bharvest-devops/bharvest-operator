@@ -98,7 +98,11 @@ func podCandidates(crd *cosmosv1.CosmosFullNode) map[string]struct{} {
 }
 
 func podPruner(crd *cosmosv1.CosmosFullNode, pod *corev1.Pod) *PrunerPod {
-	for _, p := range crd.Status.SelfHealing.CosmosPruningStatus.Candidates {
+	pruningStatus := crd.Status.SelfHealing.CosmosPruningStatus
+	if pruningStatus == nil {
+		return nil
+	}
+	for _, p := range pruningStatus.Candidates {
 		if pod.Name == p.PodName && pod.Namespace == p.Namespace {
 			prunerPod := PrunerPod(*pod)
 			return ptr(prunerPod)

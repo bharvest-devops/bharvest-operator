@@ -26,6 +26,7 @@ var nopCollector = MockCandidateCollector(func(ctx context.Context, controller c
 })
 
 func TestPruneControl_FindCandidate(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 
 	var crd = cosmosv1.CosmosFullNode{
@@ -57,12 +58,17 @@ func TestPruneControl_FindCandidate(t *testing.T) {
 				return []*corev1.Pod{
 					{
 						ObjectMeta: v1.ObjectMeta{
-							Name: "pod",
+							Name: "cosmoshub-1",
 						},
 						Spec: corev1.PodSpec{
 							Volumes: []corev1.Volume{
 								{
 									Name: "vol-chain-home",
+									VolumeSource: corev1.VolumeSource{
+										PersistentVolumeClaim: ptr(corev1.PersistentVolumeClaimVolumeSource{
+											ClaimName: "pvc-cosmoshub-1",
+										}),
+									},
 								},
 							},
 						},
@@ -76,7 +82,7 @@ func TestPruneControl_FindCandidate(t *testing.T) {
 		pod, err := pruner.FindCandidate(ctx, ptr(crd), defaultResults)
 
 		require.NoError(t, err)
-		require.Equal(t, pod.Name, "cosmoshub")
+		require.Equal(t, "cosmoshub-1", pod.Name)
 	})
 
 	t.Run("find failed", func(t *testing.T) {
@@ -117,7 +123,7 @@ func TestPruneControl_FindCandidate(t *testing.T) {
 		pod, err := pruner.FindCandidate(ctx, ptr(crd), noExceededDiskUsages)
 
 		require.NoError(t, err)
-		require.Equal(t, pod, nil)
+		require.Nil(t, pod)
 	})
 
 }

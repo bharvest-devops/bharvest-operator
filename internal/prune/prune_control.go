@@ -3,7 +3,6 @@ package prune
 import (
 	"context"
 	"errors"
-	"fmt"
 	cosmosv1 "github.com/bharvest-devops/cosmos-operator/api/v1"
 	"github.com/bharvest-devops/cosmos-operator/internal/fullnode"
 	corev1 "k8s.io/api/core/v1"
@@ -26,14 +25,19 @@ func NewPruner(candidateCollector CandidateCollector) *Pruner {
 }
 
 func (p *Pruner) FindCandidate(ctx context.Context, crd *cosmosv1.CosmosFullNode, results []fullnode.PVCDiskUsage) (*corev1.Pod, error) {
-	var (
-		spec    = crd.Spec.SelfHeal.PruningSpec
-		trigger = int(spec.UsedSpacePercentage)
-	)
+	var spec = crd.Spec.SelfHeal.PruningSpec
+	if spec == nil {
+		// Pruning not work
+		return nil, nil
+	}
 
-	var joinedErr error
+	var trigger = int(spec.UsedSpacePercentage)
 
 	status := crd.Status.SelfHealing.CosmosPruningStatus
+
+	if status == nil {
+		status = new(cosmosv1.CosmosPruningStatus)
+	}
 
 	cctx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
@@ -44,7 +48,7 @@ func (p *Pruner) FindCandidate(ctx context.Context, crd *cosmosv1.CosmosFullNode
 	)
 
 	if availCount <= 0 {
-		return nil, errors.Join(joinedErr, fmt.Errorf("there are no available pods to prune. pruning must be preceed for synced pods"))
+		return nil, errors.New("there are no available pods to prune. pruning must be preceed for synced pods")
 	}
 
 	for _, pvc := range results {
@@ -53,14 +57,12 @@ func (p *Pruner) FindCandidate(ctx context.Context, crd *cosmosv1.CosmosFullNode
 			continue
 		}
 
-		if status != nil {
-			// Finding candidate
-			for _, pod := range synced {
-				if fullnode.PVCName(pod) != pvc.Name {
-					continue
-				}
-				return pod, nil
+		// Finding candidate
+		for _, pod := range synced {
+			if fullnode.PVCName(pod) != pvc.Name {
+				continue
 			}
+			return pod, nil
 		}
 	}
 	return nil, nil

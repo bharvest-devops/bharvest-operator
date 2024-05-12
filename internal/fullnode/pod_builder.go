@@ -684,5 +684,5 @@ func (p *PrunerPod) BuildPruningContainer(crd *cosmosv1.CosmosFullNode) *corev1.
 }
 
 func GetPrunerPodName(podName string) string {
-	return fmt.Sprintf("%s-%s", podName, "pruning")
+	return fmt.Sprintf("%s-%s", podName, "pruner")
 }

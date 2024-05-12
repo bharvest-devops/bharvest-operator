@@ -124,6 +124,9 @@ func (r *PruningReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 		if err := r.fullNodeControl.ConfirmPodReplaced(ctx, crd); err != nil {
 			reporter.Error(err, "Failed to confirm pod deletion")
 			reporter.RecordError("PVCPruning", errors.Join(errors.New("WaitingForPodDeletionError"), err))
+			if err.Error() == prune.NO_CANDIDATES_ERR {
+				crd.Status.SelfHealing.CosmosPruningStatus.CosmosPruningPhase = cosmosv1.CosmosPruningPhaseFindingCandidate
+			}
 			return retryResult, nil
 		}
 		crd.Status.SelfHealing.CosmosPruningStatus.CosmosPruningPhase = cosmosv1.CosmosPruningPhasePruning
