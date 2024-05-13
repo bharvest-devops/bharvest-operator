@@ -177,15 +177,13 @@ func TestFullNodeControl_ConfirmPodReplaced(t *testing.T) {
 		podName := "cosmoshub-0"
 
 		reader := mockReader{Lister: func(ctx context.Context, list client.ObjectList, opts ...client.ListOption) error {
-			list = ptr(corev1.PodList{
-				Items: []corev1.Pod{
-					{
-						ObjectMeta: metav1.ObjectMeta{
-							Name: podName,
-						},
+			list.(*corev1.PodList).Items = []corev1.Pod{
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name: podName,
 					},
 				},
-			})
+			}
 			return nil
 		}}
 
@@ -206,15 +204,13 @@ func TestFullNodeControl_ConfirmPodReplaced(t *testing.T) {
 		podName := "cosmoshub-0"
 
 		reader := mockReader{Lister: func(ctx context.Context, list client.ObjectList, opts ...client.ListOption) error {
-			list = ptr(corev1.PodList{
-				Items: []corev1.Pod{
-					{
-						ObjectMeta: metav1.ObjectMeta{
-							Name: podName,
-						},
+			list.(*corev1.PodList).Items = []corev1.Pod{
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name: podName,
 					},
 				},
-			})
+			}
 			return nil
 		}}
 

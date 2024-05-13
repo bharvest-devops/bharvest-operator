@@ -4,13 +4,14 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/bharvest-devops/cosmos-operator/internal/fullnode"
-	"strings"
-
 	cosmosv1 "github.com/bharvest-devops/cosmos-operator/api/v1"
+	"github.com/bharvest-devops/cosmos-operator/internal/fullnode"
 	"github.com/bharvest-devops/cosmos-operator/internal/kube"
 	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"strings"
+	"time"
 )
 
 const NO_CANDIDATES_ERR = "there are no candidates"
@@ -41,6 +42,12 @@ func (control FullNodeControl) SignalPodReplace(ctx context.Context, crd *cosmos
 				status.SelfHealing.CosmosPruningStatus.Candidates = make(map[string]cosmosv1.PruningCandidate)
 			}
 			status.SelfHealing.CosmosPruningStatus.Candidates[key] = cosmosv1.PruningCandidate{PodName: candidate.Name, Namespace: candidate.Namespace}
+			status.SelfHealing.CosmosPruningStatus.CosmosPruningPhase = cosmosv1.CosmosPruningPhaseWaitingForPodReplaced
+
+			if status.SelfHealing.CosmosPruningStatus.PodPruningStatus == nil {
+				status.SelfHealing.CosmosPruningStatus.PodPruningStatus = make(map[string]cosmosv1.PodPruningStatus)
+			}
+			status.SelfHealing.CosmosPruningStatus.PodPruningStatus[key] = cosmosv1.PodPruningStatus{LastPruneTime: ptr(metav1.NewTime(time.Now()))}
 		}); err != nil {
 			return err
 		}
@@ -52,7 +59,10 @@ func (control FullNodeControl) SignalPodReplace(ctx context.Context, crd *cosmos
 // Any non-nil error is transient, including if the pod has not been replaced yet.
 // If CosmosPruning.Status.Candidates are no, reconciler will be misunderstood it's working good.
 func (control FullNodeControl) ConfirmPodReplaced(ctx context.Context, crd *cosmosv1.CosmosFullNode) error {
-	var pods corev1.PodList
+	var (
+		pods      corev1.PodList
+		joinedErr error
+	)
 	if err := control.client.List(ctx, &pods,
 		client.InNamespace(crd.Namespace),
 		client.MatchingFields{kube.ControllerOwnerField: crd.Name},
@@ -70,11 +80,15 @@ func (control FullNodeControl) ConfirmPodReplaced(ctx context.Context, crd *cosm
 			}
 		}
 	}
+	pruningPhase := cosmosv1.CosmosPruningPhaseWaitingForComplete
 
-	if existsCandidate {
-		return nil
+	if !existsCandidate {
+		pruningPhase = cosmosv1.CosmosPruningPhaseFindingCandidate
+		joinedErr = errors.New(NO_CANDIDATES_ERR)
 	}
-	return errors.New(NO_CANDIDATES_ERR)
+	return errors.Join(joinedErr, control.statusClient.SyncUpdate(ctx, client.ObjectKeyFromObject(crd), func(status *cosmosv1.FullNodeStatus) {
+		status.SelfHealing.CosmosPruningStatus.CosmosPruningPhase = pruningPhase
+	}))
 }
 
 func (control FullNodeControl) CheckPruningComplete(ctx context.Context, crd *cosmosv1.CosmosFullNode) (bool, error) {
@@ -99,9 +113,11 @@ func (control FullNodeControl) CheckPruningComplete(ctx context.Context, crd *co
 	for _, pruningCandidate := range pruningStatus.Candidates {
 		for _, p := range pods.Items {
 			if p.Name == fullnode.GetPrunerPodName(pruningCandidate.PodName) {
-				for _, containerStatus := range p.Status.ContainerStatuses {
-					if containerStatus.State.Terminated == nil {
-						return false, nil
+				for _, status := range p.Status.ContainerStatuses {
+					if status.State.Terminated != nil {
+						return true, control.statusClient.SyncUpdate(ctx, client.ObjectKeyFromObject(crd), func(status *cosmosv1.FullNodeStatus) {
+							status.SelfHealing.CosmosPruningStatus.CosmosPruningPhase = cosmosv1.CosmosPruningPhaseRestorePod
+						})
 					}
 				}
 				existsCandidate = true
@@ -112,16 +128,14 @@ func (control FullNodeControl) CheckPruningComplete(ctx context.Context, crd *co
 	if !existsCandidate {
 		return false, errors.New(NO_CANDIDATES_ERR)
 	}
-	return true, nil
+	return false, nil
 }
 
 // SignalPodRestoration updates the LocalFullNodeRef's status to indicate it should recreate the pod candidate.
 // Any error returned can be treated as transient and retried.
 func (control FullNodeControl) SignalPodRestoration(ctx context.Context, crd *cosmosv1.CosmosFullNode) error {
-	var (
-		existsCandidate bool
-		pruningStatus   = crd.Status.SelfHealing.CosmosPruningStatus
-	)
+	var pruningStatus = crd.Status.SelfHealing.CosmosPruningStatus
+
 	if pruningStatus == nil {
 		return errors.New(NO_CANDIDATES_ERR)
 	}
@@ -129,17 +143,12 @@ func (control FullNodeControl) SignalPodRestoration(ctx context.Context, crd *co
 	for _, candidate := range pruningStatus.Candidates {
 		key := control.sourceKey(candidate.PodName, candidate.Namespace)
 		objKey := client.ObjectKey{Name: crd.Name, Namespace: crd.Namespace}
-		if err := control.statusClient.SyncUpdate(ctx, objKey, func(status *cosmosv1.FullNodeStatus) {
-			delete(status.SelfHealing.CosmosPruningStatus.PodPruningStatus, key)
-		}); err != nil {
-			return err
-		}
-		existsCandidate = true
+		return control.statusClient.SyncUpdate(ctx, objKey, func(status *cosmosv1.FullNodeStatus) {
+			status.SelfHealing.CosmosPruningStatus.CosmosPruningPhase = cosmosv1.CosmosPruningPhaseConfirmPodRestoration
+			delete(status.SelfHealing.CosmosPruningStatus.Candidates, key)
+		})
 	}
-	if !existsCandidate {
-		return errors.New(NO_CANDIDATES_ERR)
-	}
-	return nil
+	return errors.New(NO_CANDIDATES_ERR)
 }
 
 // ConfirmPodRestoration verifies the pod has been restored.
@@ -165,7 +174,9 @@ func (control FullNodeControl) ConfirmPodRestoration(ctx context.Context, crd *c
 		return errors.New(NO_CANDIDATES_ERR)
 	}
 
-	return nil
+	return control.statusClient.SyncUpdate(ctx, client.ObjectKeyFromObject(crd), func(status *cosmosv1.FullNodeStatus) {
+		status.SelfHealing.CosmosPruningStatus.CosmosPruningPhase = cosmosv1.CosmosPruningPhaseFindingCandidate
+	})
 }
 
 func (control FullNodeControl) sourceKey(candidatePodName, namespace string) string {
