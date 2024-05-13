@@ -112,6 +112,13 @@ type PruningSpec struct {
 	// +kubebuilder:validation:MaxSize=100
 	UsedSpacePercentage int32 `json:"usedSpacePercentage"`
 
+	// Minimum number of CosmosFullNode pods that must be ready before pruning pod.
+	// Defaults to 2.
+	// Warning: If set to 1, you will experience downtime.
+	// +optional
+	// +kubebuilder:validation:Minimum:=1
+	MinAvailable int32 `json:"minAvailable"`
+
 	// The image url of you'll use for pruning.
 	// If not set, defaults to "ghcr.io/bharvest-devops/cosmos-pruner:latest"
 	// command
