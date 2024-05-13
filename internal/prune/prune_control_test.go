@@ -34,6 +34,7 @@ func TestPruneControl_FindCandidate(t *testing.T) {
 			SelfHeal: ptr(cosmosv1.SelfHealSpec{
 				PruningSpec: ptr(cosmosv1.PruningSpec{
 					UsedSpacePercentage: 50,
+					MinAvailable:        1,
 				}),
 			}),
 		},
@@ -56,6 +57,23 @@ func TestPruneControl_FindCandidate(t *testing.T) {
 		cacheController := MockCandidateCollector(
 			func(ctx context.Context, controller client.ObjectKey) []*corev1.Pod {
 				return []*corev1.Pod{
+					{
+						ObjectMeta: v1.ObjectMeta{
+							Name: "cosmoshub-0",
+						},
+						Spec: corev1.PodSpec{
+							Volumes: []corev1.Volume{
+								{
+									Name: "vol-chain-home",
+									VolumeSource: corev1.VolumeSource{
+										PersistentVolumeClaim: ptr(corev1.PersistentVolumeClaimVolumeSource{
+											ClaimName: "pvc-cosmoshub-0",
+										}),
+									},
+								},
+							},
+						},
+					},
 					{
 						ObjectMeta: v1.ObjectMeta{
 							Name: "cosmoshub-1",

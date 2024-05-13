@@ -44,9 +44,14 @@ func (p *Pruner) FindCandidate(ctx context.Context, crd *cosmosv1.CosmosFullNode
 	var (
 		synced     = p.candidateCollector.SyncedPods(cctx, client.ObjectKey{Namespace: crd.Namespace, Name: crd.Name})
 		availCount = int32(len(synced))
+		minAvail   = spec.MinAvailable
 	)
 
-	if availCount <= 0 {
+	if minAvail <= 0 {
+		minAvail = 2
+	}
+
+	if availCount <= minAvail {
 		return nil
 	}
 
