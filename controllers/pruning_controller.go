@@ -24,7 +24,6 @@ import (
 	"github.com/bharvest-devops/cosmos-operator/internal/healthcheck"
 	"github.com/bharvest-devops/cosmos-operator/internal/prune"
 	corev1 "k8s.io/api/core/v1"
-	"k8s.io/client-go/util/retry"
 	"net/http"
 	"time"
 
@@ -83,15 +82,9 @@ func (r *PruningReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 		return stopResult, nil
 	}
 
-	defer func(Client client.Client, ctx context.Context, obj client.Object, opts ...client.UpdateOption) {
-		_ = retry.RetryOnConflict(retry.DefaultRetry, func() error {
-			return Client.Update(ctx, obj)
-		})
-	}(r.Client, ctx, crd)
-
 	reporter := kube.NewEventReporter(logger, r.recorder, crd)
 
-	retryResult := ctrl.Result{RequeueAfter: 10 * time.Second}
+	retryResult := ctrl.Result{RequeueAfter: 60 * time.Second}
 
 	// Check current phase is correct.
 	checkPhase(crd)
@@ -119,22 +112,14 @@ func (r *PruningReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 
 		err = r.fullNodeControl.SignalPodReplace(ctx, crd, []*corev1.Pod{candidatePod})
 		if err != nil {
-			return ctrl.Result{}, err
+			return retryResult, err
 		}
-
-		crd.Status.SelfHealing.CosmosPruningStatus.CosmosPruningPhase = cosmosv1.CosmosPruningPhaseWaitingForPodReplaced
 	case cosmosv1.CosmosPruningPhaseWaitingForPodReplaced:
-
 		if err := r.fullNodeControl.ConfirmPodReplaced(ctx, crd); err != nil {
 			reporter.Error(err, "Failed to confirm pod deletion")
 			reporter.RecordError("PVCPruning", errors.Join(errors.New("WaitingForPodDeletionError"), err))
-			if err.Error() == prune.NO_CANDIDATES_ERR {
-				crd.Status.SelfHealing.CosmosPruningStatus.CosmosPruningPhase = cosmosv1.CosmosPruningPhaseFindingCandidate
-			}
 			return retryResult, nil
 		}
-		crd.Status.SelfHealing.CosmosPruningStatus.CosmosPruningPhase = cosmosv1.CosmosPruningPhaseWaitingForComplete
-
 	case cosmosv1.CosmosPruningPhaseWaitingForComplete:
 		ready, err := r.fullNodeControl.CheckPruningComplete(ctx, crd)
 		if err != nil {
@@ -144,12 +129,10 @@ func (r *PruningReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 		}
 		if !ready {
 			reporter.Info("Pruning is not complete")
-			return ctrl.Result{RequeueAfter: 30 * time.Second}, nil
+			return ctrl.Result{RequeueAfter: 60 * time.Second}, nil
 		}
 
 		reporter.Info("Pruning complete")
-		crd.Status.SelfHealing.CosmosPruningStatus.CosmosPruningPhase = cosmosv1.CosmosPruningPhaseRestorePod
-
 	case cosmosv1.CosmosPruningPhaseRestorePod:
 		err := r.fullNodeControl.SignalPodRestoration(ctx, crd)
 		if err != nil {
@@ -157,21 +140,18 @@ func (r *PruningReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 			reporter.RecordError("PodRestorationError", err)
 			return retryResult, err
 		}
-
-		crd.Status.SelfHealing.CosmosPruningStatus.CosmosPruningPhase = cosmosv1.CosmosPruningPhaseConfirmPodRestoration
 	case cosmosv1.CosmosPruningPhaseConfirmPodRestoration:
+		// Complete pruning
 		err := r.fullNodeControl.ConfirmPodRestoration(ctx, crd)
 		if err != nil {
 			reporter.Error(err, "Failed to confirm pod Restoration")
 			reporter.RecordError("ConfirmPodRestorationErr", err)
 			return retryResult, err
 		}
-		// Complete pruning
-		crd.Status.SelfHealing.CosmosPruningStatus.CosmosPruningPhase = cosmosv1.CosmosPruningPhaseFindingCandidate
 	}
 
 	// Updating status in the defer above triggers a new reconcile loop.
-	return stopResult, nil
+	return ctrl.Result{RequeueAfter: 30 * time.Second}, nil
 }
 
 // SetupWithManager sets up the controller with the Manager.
@@ -192,7 +172,7 @@ func checkPhase(crd *cosmosv1.CosmosFullNode) {
 		})
 	}
 
-	if len(crd.Status.SelfHealing.CosmosPruningStatus.Candidates) != 0 &&
+	if len(pruningStatus.Candidates) != 0 &&
 		pruningStatus.CosmosPruningPhase != cosmosv1.CosmosPruningPhaseRestorePod && pruningStatus.CosmosPruningPhase != cosmosv1.CosmosPruningPhaseConfirmPodRestoration {
 		crd.Status.SelfHealing.CosmosPruningStatus.CosmosPruningPhase = cosmosv1.CosmosPruningPhaseWaitingForComplete
 	}
