@@ -84,7 +84,7 @@ func (r *PruningReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 
 	reporter := kube.NewEventReporter(logger, r.recorder, crd)
 
-	retryResult := ctrl.Result{RequeueAfter: 60 * time.Second}
+	retryResult := ctrl.Result{RequeueAfter: 180 * time.Second}
 
 	// Check current phase is correct.
 	checkPhase(crd)
