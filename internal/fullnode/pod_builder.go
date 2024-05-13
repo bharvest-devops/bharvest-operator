@@ -666,6 +666,7 @@ func (p *PrunerPod) BuildPruningContainer(crd *cosmosv1.CosmosFullNode) *corev1.
 	var (
 		pruningImage   = crd.Spec.SelfHeal.PruningSpec.Image
 		pruningCommand = crd.Spec.SelfHeal.PruningSpec.PruningCommand
+		probes         = podReadinessProbes(crd)
 	)
 	if pruningImage == "" {
 		pruningImage = PRUNING_POD_IMAGE_DEFAULT
@@ -680,14 +681,16 @@ func (p *PrunerPod) BuildPruningContainer(crd *cosmosv1.CosmosFullNode) *corev1.
 	p.Name = GetPrunerPodName(p.Name)
 	p.Spec.Containers = []corev1.Container{
 		{
-			Name:         GetPrunerPodName(p.Name),
-			Image:        pruningImage,
-			Command:      []string{"/bin/sh"},
-			Args:         []string{"-c", pruningCommand},
-			WorkingDir:   "/home/operator",
-			VolumeMounts: oldPod.Spec.Containers[0].VolumeMounts,
+			Name:           GetPrunerPodName(p.Name),
+			Image:          pruningImage,
+			Command:        []string{"/bin/sh"},
+			Args:           []string{"-c", pruningCommand},
+			WorkingDir:     "/home/operator",
+			VolumeMounts:   oldPod.Spec.Containers[0].VolumeMounts,
+			ReadinessProbe: probes[0],
 		},
 	}
+	p.Spec.RestartPolicy = corev1.RestartPolicyNever
 
 	newPod := corev1.Pod(*p)
 	return ptr(newPod)
