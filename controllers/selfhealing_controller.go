@@ -175,7 +175,7 @@ func (r *SelfHealingReconciler) mitigateHeightDrift(ctx context.Context, reporte
 	}
 	if deleted > 0 {
 		msg := fmt.Sprintf("Height lagged behind by more than %d blocks or overed heightRetainTime than (%d); deleted %d pod(s)",
-			crd.Spec.SelfHeal.HeightDriftMitigation.ThresholdHeight, crd.Spec.SelfHeal.HeightDriftMitigation.ThresholdTime, deleted)
+			crd.Spec.SelfHeal.HeightDriftMitigation.ThresholdHeight, crd.Spec.SelfHeal.HeightDriftMitigation.MaxHeightRetentionTime, deleted)
 		reporter.RecordInfo("HeightDriftMitigation", msg)
 	}
 }

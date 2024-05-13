@@ -652,3 +652,50 @@ func PVCName(pod *corev1.Pod) string {
 	}
 	return found.PersistentVolumeClaim.ClaimName
 }
+
+const PRUNING_POD_IMAGE_DEFAULT = "ghcr.io/bharvest-devops/cosmos-pruner:latest"
+
+func (p *PrunerPod) BuildPruningContainer(crd *cosmosv1.CosmosFullNode) *corev1.Pod {
+	if p == nil {
+		return nil
+	}
+
+	if crd.Spec.SelfHeal.PruningSpec == nil {
+		return nil
+	}
+	var (
+		pruningImage   = crd.Spec.SelfHeal.PruningSpec.Image
+		pruningCommand = crd.Spec.SelfHeal.PruningSpec.PruningCommand
+		probes         = podReadinessProbes(crd)
+	)
+	if pruningImage == "" {
+		pruningImage = PRUNING_POD_IMAGE_DEFAULT
+	}
+	if pruningCommand == "" {
+		pruningCommand = "cosmos-pruner prune /home/operator/cosmos/data/ -b=0 -v=0 --tx_index=true --compact=true --cosmos-sdk=true 2>&1"
+	}
+
+	oldPod := ptr(corev1.Pod(*p)).DeepCopy()
+
+	p.Spec.InitContainers = nil
+	p.Name = GetPrunerPodName(p.Name)
+	p.Spec.Containers = []corev1.Container{
+		{
+			Name:           GetPrunerPodName(p.Name),
+			Image:          pruningImage,
+			Command:        []string{"/bin/sh"},
+			Args:           []string{"-c", pruningCommand},
+			WorkingDir:     "/home/operator",
+			VolumeMounts:   oldPod.Spec.Containers[0].VolumeMounts,
+			ReadinessProbe: probes[0],
+		},
+	}
+	p.Spec.RestartPolicy = corev1.RestartPolicyNever
+
+	newPod := corev1.Pod(*p)
+	return ptr(newPod)
+}
+
+func GetPrunerPodName(podName string) string {
+	return fmt.Sprintf("%s-%s", podName, "pruner")
+}

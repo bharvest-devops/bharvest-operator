@@ -199,6 +199,17 @@ func startManager(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("unable to create SelfHealing controller: %w", err)
 	}
 
+	// An ancillary controller for pruning on CosmosFullNode.
+	if err = controllers.NewPruningReconciler(
+		mgr.GetClient(),
+		mgr.GetEventRecorderFor(cosmosv1.PruningController),
+		statusClient,
+		cacheController,
+		httpClient,
+	).SetupWithManager(ctx, mgr); err != nil {
+		return fmt.Errorf("unable to create pruning controller: %w", err)
+	}
+
 	// Test for presence of VolumeSnapshot CRD.
 	snapshotErr := controllers.IndexVolumeSnapshots(ctx, mgr)
 	if snapshotErr != nil {
