@@ -74,7 +74,7 @@ type ScheduledVolumeSnapshotSpec struct {
 	// snapshot is complete.
 	// This way, the snapshot has the highest possible data integrity.
 	// Defaults to 2.
-	// Warning: If set to 1, you will experience downtime.
+	// Warning: If set to 1, you may experience downtime.
 	// +optional
 	// +kubebuilder:validation:Minimum:=1
 	MinAvailable int32 `json:"minAvailable"`

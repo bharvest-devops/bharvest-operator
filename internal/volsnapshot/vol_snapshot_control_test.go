@@ -198,7 +198,7 @@ func TestVolumeSnapshotControl_FindCandidate(t *testing.T) {
 		require.ErrorContains(t, err, "in-sync pod with index 2 not found")
 	})
 
-	t.Run("custom min available", func(t *testing.T) {
+	t.Run("not satisfy min available", func(t *testing.T) {
 		var pod corev1.Pod
 		pod.Name = "found-me"
 		pod.Status.Conditions = []corev1.PodCondition{readyCondition}
@@ -214,10 +214,9 @@ func TestVolumeSnapshotControl_FindCandidate(t *testing.T) {
 		availCRD := crd.DeepCopy()
 		availCRD.Spec.MinAvailable = 1
 
-		got, err := control.FindCandidate(ctx, availCRD)
+		_, err := control.FindCandidate(ctx, availCRD)
 
-		require.NoError(t, err)
-		require.Equal(t, "found-me", got.PodName)
+		require.Error(t, err, "1 or more pods must be in-sync to prevent downtime, found 1 in-sync")
 	})
 
 	t.Run("not enough ready pods", func(t *testing.T) {
