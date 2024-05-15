@@ -63,7 +63,7 @@ func (control VolumeSnapshotControl) FindCandidate(ctx context.Context, crd *cos
 		minAvail = 2
 	}
 
-	if availCount < minAvail {
+	if availCount <= minAvail {
 		return Candidate{}, fmt.Errorf("%d or more pods must be in-sync to prevent downtime, found %d in-sync", minAvail, availCount)
 	}
 
