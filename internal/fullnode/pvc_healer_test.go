@@ -339,18 +339,6 @@ func TestPVCHealder_UpdatePodFailure(t *testing.T) {
 
 		podName := "initia-1"
 
-		mockCheckSyncer := mockStatusSyncer(func(ctx context.Context, key client.ObjectKey, update func(status *cosmosv1.FullNodeStatus)) error {
-			update(&fullnodeStatus)
-
-			require.NotNil(t, fullnodeStatus.SelfHealing.RegenPVCStatus)
-			require.Equal(t, 0, len(fullnodeStatus.SelfHealing.RegenPVCStatus.FailureTimes[sourceKey("initia-1", "default")]))
-			require.NotNil(t, fullnodeStatus.SelfHealing.RegenPVCStatus.Candidates)
-
-			require.Equal(t, podName, fullnodeStatus.SelfHealing.RegenPVCStatus.Candidates[sourceKey(podName, "default")].PodName)
-
-			return nil
-		})
-
 		crd := ptr(cosmosv1.CosmosFullNode{
 			ObjectMeta: v1.ObjectMeta{
 				Namespace: "default",
@@ -381,7 +369,19 @@ func TestPVCHealder_UpdatePodFailure(t *testing.T) {
 			require.Equal(t, false, isOver)
 
 			time.Sleep(1 * time.Second)
+			t.Log(crd.Status.SelfHealing.RegenPVCStatus.FailureTimes[sourceKey(podName, "default")])
 		}
+
+		mockCheckSyncer := mockStatusSyncer(func(ctx context.Context, key client.ObjectKey, update func(status *cosmosv1.FullNodeStatus)) error {
+			update(ptr(crd.Status))
+
+			require.NotNil(t, crd.Status.SelfHealing.RegenPVCStatus)
+			require.Equal(t, podName, crd.Status.SelfHealing.RegenPVCStatus.Candidates[sourceKey(podName, "default")].PodName)
+			require.Equal(t, 0, len(crd.Status.SelfHealing.RegenPVCStatus.FailureTimes[sourceKey(podName, "default")]))
+			require.NotNil(t, crd.Status.SelfHealing.RegenPVCStatus.Candidates)
+
+			return nil
+		})
 
 		candidateHealer := NewPVCHealer(mockCheckSyncer)
 		isOver, err := candidateHealer.UpdatePodFailure(ctx, crd, podName)
