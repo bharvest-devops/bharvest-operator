@@ -174,7 +174,7 @@ func (healer PVCHealer) UpdatePodFailure(ctx context.Context, crd *cosmosv1.Cosm
 		regenPVCStatus.RegenPVCPhase = cosmosv1.RegenPVCPhaseNotYet
 	}
 
-	current = append(current, now.Format("2006-01-02 15:04:05"))
+	current = lo.Uniq(append(current, now.Format("2006-01-02 15:04:05")))
 
 	isOveredRegenThreshold := uint32(len(current)) >= crd.Spec.SelfHeal.HeightDriftMitigation.RegeneratePVC.ThresholdCount
 	if isOveredRegenThreshold {
