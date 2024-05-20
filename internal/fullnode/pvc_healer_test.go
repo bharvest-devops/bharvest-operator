@@ -347,7 +347,8 @@ func TestPVCHealder_UpdatePodFailure(t *testing.T) {
 				SelfHeal: ptr(cosmosv1.SelfHealSpec{
 					HeightDriftMitigation: ptr(cosmosv1.HeightDriftMitigationSpec{
 						RegeneratePVC: ptr(cosmosv1.RegeneratePVCSpec{
-							ThresholdCount: 3,
+							ThresholdCount:                3,
+							FailedCountCollectionDuration: v1.Duration{Duration: 5 * time.Minute},
 						}),
 					}),
 				}),
@@ -356,7 +357,7 @@ func TestPVCHealder_UpdatePodFailure(t *testing.T) {
 		})
 
 		mockSyncer := mockStatusSyncer(func(ctx context.Context, key client.ObjectKey, update func(status *cosmosv1.FullNodeStatus)) error {
-			update(ptr(crd.Status))
+			update(&crd.Status)
 			return nil
 		})
 
@@ -373,7 +374,7 @@ func TestPVCHealder_UpdatePodFailure(t *testing.T) {
 		}
 
 		mockCheckSyncer := mockStatusSyncer(func(ctx context.Context, key client.ObjectKey, update func(status *cosmosv1.FullNodeStatus)) error {
-			update(ptr(crd.Status))
+			update(&crd.Status)
 
 			require.NotNil(t, crd.Status.SelfHealing.RegenPVCStatus)
 			require.Equal(t, podName, crd.Status.SelfHealing.RegenPVCStatus.Candidates[sourceKey(podName, "default")].PodName)
