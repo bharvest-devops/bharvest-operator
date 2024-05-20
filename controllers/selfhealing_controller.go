@@ -117,12 +117,6 @@ func (r *SelfHealingReconciler) regeneratePVC(ctx context.Context, reporter kube
 	}
 
 	if regenPVC {
-		if err := r.Delete(ctx, pvc); err != nil {
-			reporter.Error(err, "Failed to delete pvc", pvc.Name)
-			reporter.RecordError("PVCRegenerating", err)
-			return
-		}
-
 		msg := fmt.Sprintf("Pod %s has overed thresholdCount[%s]. Re-generating PVC...", pod.Name, crd.Spec.SelfHeal.HeightDriftMitigation.RegeneratePVC.FailedCountCollectionDuration.String())
 		reporter.RecordInfo("PVCRegenerating", msg)
 	}

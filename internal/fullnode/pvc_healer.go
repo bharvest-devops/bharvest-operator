@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"github.com/samber/lo"
 	"math"
+	"strings"
 	"time"
 
 	cosmosv1 "github.com/bharvest-devops/cosmos-operator/api/v1"
@@ -146,18 +147,20 @@ func (healer PVCHealer) UpdatePodFailure(ctx context.Context, crd *cosmosv1.Cosm
 	if regenPVCStatus == nil {
 		regenPVCStatus = ptr(cosmosv1.RegenPVCStatus{
 			RegenPVCPhase: cosmosv1.RegenPVCPhaseNotYet,
+			FailureTimes:  make(map[string][]string),
+			Candidates:    make(map[string]cosmosv1.SelfHealingCandidate),
 		})
 		crd.Status.SelfHealing.RegenPVCStatus = regenPVCStatus
 	}
 
-	current, _ := regenPVCStatus.FailureTimes[podName]
+	current, _ := regenPVCStatus.FailureTimes[sourceKey(podName, crd.Namespace)]
 
 	now := metav1.NewTime(healer.now())
 
 	if current != nil {
 		current = lo.FilterMap(current, func(failureTime string, index int) (string, bool) {
 			collectionDuration := crd.Spec.SelfHeal.HeightDriftMitigation.RegeneratePVC.FailedCountCollectionDuration
-			t, err := time.Parse(failureTime, "2006-01-02 15:04:05")
+			t, err := time.Parse("2006-01-02 15:04:05", failureTime)
 			if err != nil {
 				return "", false
 			}
@@ -173,14 +176,24 @@ func (healer PVCHealer) UpdatePodFailure(ctx context.Context, crd *cosmosv1.Cosm
 
 	current = append(current, now.Format("2006-01-02 15:04:05"))
 
-	isOveredRegenThreshold := uint32(len(current)) > crd.Spec.SelfHeal.HeightDriftMitigation.RegeneratePVC.ThresholdCount
+	isOveredRegenThreshold := uint32(len(current)) >= crd.Spec.SelfHeal.HeightDriftMitigation.RegeneratePVC.ThresholdCount
 	if isOveredRegenThreshold {
 		regenPVCStatus.RegenPVCPhase = cosmosv1.RegenPVCPhaseRegeneratingPVC
+		regenPVCStatus.Candidates[sourceKey(podName, crd.Namespace)] = cosmosv1.SelfHealingCandidate{
+			PodName:   podName,
+			Namespace: crd.Namespace,
+		}
 		current = []string{}
 	}
-	regenPVCStatus.FailureTimes[podName] = current
+	regenPVCStatus.FailureTimes[sourceKey(podName, crd.Namespace)] = current
 
 	return isOveredRegenThreshold, errors.Join(joinedErr, healer.client.SyncUpdate(ctx, client.ObjectKeyFromObject(crd), func(status *cosmosv1.FullNodeStatus) {
 		status.SelfHealing.RegenPVCStatus = regenPVCStatus
 	}))
+}
+
+func sourceKey(candidatePodName, namespace string) string {
+	key := strings.Join([]string{namespace, candidatePodName, cosmosv1.GroupVersion.Version, cosmosv1.GroupVersion.Group}, ".")
+	// Remove all slashes because key is used in JSONPatch where slash "/" is a reserved character.
+	return strings.ReplaceAll(key, "/", "")
 }

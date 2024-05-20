@@ -182,4 +182,89 @@ func TestBuildPods(t *testing.T) {
 		got := lo.Map(pods, func(pod diff.Resource[*corev1.Pod], _ int) string { return pod.Object().Name })
 		require.Equal(t, want, got)
 	})
+
+	t.Run("pruning pod candidates", func(t *testing.T) {
+		pruningImage := "ghcr.io/pruning"
+
+		cometConfig := cosmosv1.CometBFTConfig{}
+		appConfig := cosmosv1.SDKAppConfig{}
+		crd := &cosmosv1.CosmosFullNode{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "agoric",
+				Namespace: "default",
+			},
+			Spec: cosmosv1.FullNodeSpec{
+				Replicas: 6,
+				ChainSpec: cosmosv1.ChainSpec{
+					CometBFT:  &cometConfig,
+					CosmosSDK: &appConfig,
+				},
+				SelfHeal: ptr(cosmosv1.SelfHealSpec{
+					PruningSpec: ptr(cosmosv1.PruningSpec{
+						Image: pruningImage,
+					}),
+				}),
+				PodTemplate: cosmosv1.PodSpec{
+					Probes: cosmosv1.FullNodeProbesSpec{
+						Strategy: cosmosv1.FullNodeProbeStrategyNone,
+					},
+				},
+			},
+			Status: cosmosv1.FullNodeStatus{
+				SelfHealing: cosmosv1.SelfHealingStatus{
+					CosmosPruningStatus: ptr(cosmosv1.CosmosPruningStatus{
+						Candidates: map[string]cosmosv1.SelfHealingCandidate{
+							"some.pruning.pods.1": {PodName: "agoric-1", Namespace: "default"},
+						},
+					}),
+				},
+			},
+		}
+
+		pods, err := BuildPods(crd, nil)
+		require.NoError(t, err)
+		require.Equal(t, 6, len(pods))
+
+		want := lo.Map([]string{"0", "1-pruner", "2", "3", "4", "5"}, func(i string, _ int) string {
+			return fmt.Sprintf("agoric-%s", i)
+		})
+		got := lo.Map(pods, func(pod diff.Resource[*corev1.Pod], _ int) string { return pod.Object().Name })
+		require.Equal(t, want, got)
+
+		require.Equal(t, pruningImage, pods[1].Object().Spec.Containers[0].Image)
+	})
+
+	t.Run("regen pvc pod candidates", func(t *testing.T) {
+		cometConfig := cosmosv1.CometBFTConfig{}
+		appConfig := cosmosv1.SDKAppConfig{}
+		crd := &cosmosv1.CosmosFullNode{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: "agoric",
+			},
+			Spec: cosmosv1.FullNodeSpec{
+				Replicas: 6,
+				ChainSpec: cosmosv1.ChainSpec{
+					CometBFT:  &cometConfig,
+					CosmosSDK: &appConfig,
+				},
+			},
+			Status: cosmosv1.FullNodeStatus{
+				ScheduledSnapshotStatus: map[string]cosmosv1.FullNodeSnapshotStatus{
+					"some.scheduled.snapshot.1":       {PodCandidate: "agoric-1"},
+					"some.scheduled.snapshot.2":       {PodCandidate: "agoric-2"},
+					"some.scheduled.snapshot.ignored": {PodCandidate: "agoric-99"},
+				},
+			},
+		}
+
+		pods, err := BuildPods(crd, nil)
+		require.NoError(t, err)
+		require.Equal(t, 4, len(pods))
+
+		want := lo.Map([]int{0, 3, 4, 5}, func(i int, _ int) string {
+			return fmt.Sprintf("agoric-%d", i)
+		})
+		got := lo.Map(pods, func(pod diff.Resource[*corev1.Pod], _ int) string { return pod.Object().Name })
+		require.Equal(t, want, got)
+	})
 }
