@@ -39,9 +39,9 @@ func (control FullNodeControl) SignalPodReplace(ctx context.Context, crd *cosmos
 				status.SelfHealing.CosmosPruningStatus = new(cosmosv1.CosmosPruningStatus)
 			}
 			if status.SelfHealing.CosmosPruningStatus.Candidates == nil {
-				status.SelfHealing.CosmosPruningStatus.Candidates = make(map[string]cosmosv1.PruningCandidate)
+				status.SelfHealing.CosmosPruningStatus.Candidates = make(map[string]cosmosv1.SelfHealingCandidate)
 			}
-			status.SelfHealing.CosmosPruningStatus.Candidates[key] = cosmosv1.PruningCandidate{PodName: candidate.Name, Namespace: candidate.Namespace}
+			status.SelfHealing.CosmosPruningStatus.Candidates[key] = cosmosv1.SelfHealingCandidate{PodName: candidate.Name, Namespace: candidate.Namespace}
 			status.SelfHealing.CosmosPruningStatus.CosmosPruningPhase = cosmosv1.CosmosPruningPhaseWaitingForPodReplaced
 
 			if status.SelfHealing.CosmosPruningStatus.PodPruningStatus == nil {
