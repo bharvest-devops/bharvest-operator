@@ -147,6 +147,7 @@ func (r *CosmosFullNodeReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 		peers = peers.Default()
 		errs.Append(perr)
 	}
+	crd.Status.Peers = peers.AllExternal()
 
 	// Reconcile ConfigMaps.
 	configCksums, err := r.configMapControl.Reconcile(ctx, reporter, crd, peers)
@@ -205,8 +206,6 @@ func (r *CosmosFullNodeReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 		// Allow more time to requeue while p2p services create their load balancers.
 		return ctrl.Result{RequeueAfter: 30 * time.Second}, nil
 	}
-
-	crd.Status.Peers = peers.AllExternal()
 
 	crd.Status.Phase = cosmosv1.FullNodePhaseCompete
 	// Requeue to constantly poll consensus state.
