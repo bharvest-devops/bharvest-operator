@@ -629,7 +629,7 @@ func (c *CometBFTConfig) ToCosmosConfig() blockchain_toml.CosmosConfigFile {
 			MaxNumOutboundPeers:  c.P2P.MaxNumOutboundPeers,
 			Pex:                  c.P2P.Pex,
 			SeedMode:             c.P2P.SeedMode,
-			PrivatePeerIds:       c.P2P.PrivatePeerIds,
+			PrivatePeerIds:       c.P2P.PrivatePeerIDs,
 			UnconditionalPeerIds: c.P2P.UnconditionalPeerIDs,
 		}
 	}
@@ -692,7 +692,7 @@ func (c *CometBFTConfig) ToNamadaComet() blockchain_toml.NamadaCometbft {
 			MaxNumOutboundPeers:  c.P2P.MaxNumOutboundPeers,
 			Pex:                  c.P2P.Pex,
 			SeedMode:             c.P2P.SeedMode,
-			PrivatePeerIds:       c.P2P.PrivatePeerIds,
+			PrivatePeerIds:       c.P2P.PrivatePeerIDs,
 			UnconditionalPeerIds: c.P2P.UnconditionalPeerIDs,
 		}
 	}
@@ -1160,7 +1160,7 @@ type P2P struct {
 	// Comma delimited list of node/peer IDs to keep private (will not be gossiped to other peers)
 	// If not set, defaults to ""
 	// +optional
-	PrivatePeerIds *string `json:"privatePeerIds" toml:"private_peer_ids"`
+	PrivatePeerIDs *string `json:"privatePeerIDs" toml:"private_peer_ids"`
 
 	// Comma delimited list of node/peer IDs, to which a connection will be (re)established ignoring any existing limits.
 	// +optional
@@ -1177,7 +1177,7 @@ func (p *P2P) ToNamadaP2P() blockchain_toml.NamadaP2P {
 		MaxNumOutboundPeers:  p.MaxNumOutboundPeers,
 		Pex:                  p.Pex,
 		SeedMode:             p.SeedMode,
-		PrivatePeerIds:       p.PrivatePeerIds,
+		PrivatePeerIds:       p.PrivatePeerIDs,
 		UnconditionalPeerIds: p.UnconditionalPeerIDs,
 	}
 }

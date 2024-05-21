@@ -718,8 +718,8 @@ func (in *P2P) DeepCopyInto(out *P2P) {
 		*out = new(bool)
 		**out = **in
 	}
-	if in.PrivatePeerIds != nil {
-		in, out := &in.PrivatePeerIds, &out.PrivatePeerIds
+	if in.PrivatePeerIDs != nil {
+		in, out := &in.PrivatePeerIDs, &out.PrivatePeerIDs
 		*out = new(string)
 		**out = **in
 	}
