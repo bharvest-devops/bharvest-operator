@@ -186,7 +186,7 @@ func TestBuildConfigMaps(t *testing.T) {
 			privatePeerIds := "private1,private2"
 			unconditoinalPeerIDs := "unconditional1,unconditional2"
 			peerCRD.Spec.ChainSpec.CometBFT.P2P.UnconditionalPeerIDs = &unconditoinalPeerIDs
-			peerCRD.Spec.ChainSpec.CometBFT.P2P.PrivatePeerIds = &privatePeerIds
+			peerCRD.Spec.ChainSpec.CometBFT.P2P.PrivatePeerIDs = &privatePeerIds
 			peers := Peers{
 				client.ObjectKey{Namespace: namespace, Name: "osmosis-0"}: {NodeID: "0", PrivateAddress: "0.local:26656"},
 				client.ObjectKey{Namespace: namespace, Name: "osmosis-1"}: {NodeID: "1", PrivateAddress: "1.local:26656"},

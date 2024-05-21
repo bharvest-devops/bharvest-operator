@@ -82,7 +82,7 @@ func TestFullNodeControl_SignalPodReplace(t *testing.T) {
 			candidateKey := "default.cosmoshub-0.v1.cosmos.bharvest"
 
 			require.Equal(t,
-				cosmosv1.PruningCandidate{
+				cosmosv1.SelfHealingCandidate{
 					PodName:   "cosmoshub-0",
 					Namespace: "default",
 				},
@@ -163,7 +163,7 @@ func TestFullNodeControl_ConfirmPodReplaced(t *testing.T) {
 
 		podName := "cosmoshub-0"
 		crd.Status.SelfHealing.CosmosPruningStatus = ptr(cosmosv1.CosmosPruningStatus{
-			Candidates: map[string]cosmosv1.PruningCandidate{
+			Candidates: map[string]cosmosv1.SelfHealingCandidate{
 				fullNodeControl.sourceKey(podName, crd.Namespace): {PodName: podName, Namespace: crd.Namespace},
 			},
 		})
@@ -190,7 +190,7 @@ func TestFullNodeControl_ConfirmPodReplaced(t *testing.T) {
 		fullNodeControl := NewFullNodeControl(nopStatusSyncer, reader)
 
 		crd.Status.SelfHealing.CosmosPruningStatus = ptr(cosmosv1.CosmosPruningStatus{
-			Candidates: map[string]cosmosv1.PruningCandidate{
+			Candidates: map[string]cosmosv1.SelfHealingCandidate{
 				fullNodeControl.sourceKey(podName, crd.Namespace): {PodName: podName, Namespace: crd.Namespace},
 			},
 		})
@@ -217,7 +217,7 @@ func TestFullNodeControl_ConfirmPodReplaced(t *testing.T) {
 		fullNodeControl := NewFullNodeControl(nopStatusSyncer, reader)
 
 		crd.Status.SelfHealing.CosmosPruningStatus = ptr(cosmosv1.CosmosPruningStatus{
-			Candidates: map[string]cosmosv1.PruningCandidate{},
+			Candidates: map[string]cosmosv1.SelfHealingCandidate{},
 		})
 
 		err := fullNodeControl.ConfirmPodReplaced(ctx, ptr(crd))
@@ -274,7 +274,7 @@ func TestFullNodeControl_CheckPruningComplete(t *testing.T) {
 		fullNodeControl := NewFullNodeControl(nopStatusSyncer, read)
 
 		crd.Status.SelfHealing.CosmosPruningStatus = ptr(cosmosv1.CosmosPruningStatus{
-			Candidates: map[string]cosmosv1.PruningCandidate{
+			Candidates: map[string]cosmosv1.SelfHealingCandidate{
 				fullNodeControl.sourceKey(candidatePodName, crd.Namespace): {
 					PodName:   candidatePodName,
 					Namespace: crd.Namespace,
@@ -329,7 +329,7 @@ func TestFullNodeControl_CheckPruningComplete(t *testing.T) {
 		fullNodeControl := NewFullNodeControl(nopStatusSyncer, read)
 
 		crd.Status.SelfHealing.CosmosPruningStatus = ptr(cosmosv1.CosmosPruningStatus{
-			Candidates: map[string]cosmosv1.PruningCandidate{
+			Candidates: map[string]cosmosv1.SelfHealingCandidate{
 				fullNodeControl.sourceKey(candidatePodName, crd.Namespace): {
 					PodName:   candidatePodName,
 					Namespace: crd.Namespace,
@@ -410,7 +410,7 @@ func TestFullNodeControl_SignalPodRestoration(t *testing.T) {
 		candidateName := "default." + crd.Name + "-0.v1.cosmos.bharvest"
 
 		crd.Status.SelfHealing.CosmosPruningStatus = ptr(cosmosv1.CosmosPruningStatus{
-			Candidates: map[string]cosmosv1.PruningCandidate{
+			Candidates: map[string]cosmosv1.SelfHealingCandidate{
 				candidateName: {
 					PodName:   podName,
 					Namespace: "default",
@@ -435,13 +435,13 @@ func TestFullNodeControl_ConfirmPodRestoration(t *testing.T) {
 	crd.Namespace = "default"
 	crd.Name = "cosmoshub"
 	crd.Status.SelfHealing.CosmosPruningStatus = new(cosmosv1.CosmosPruningStatus)
-	crd.Status.SelfHealing.CosmosPruningStatus.Candidates = make(map[string]cosmosv1.PruningCandidate)
+	crd.Status.SelfHealing.CosmosPruningStatus.Candidates = make(map[string]cosmosv1.SelfHealingCandidate)
 
 	t.Run("happy path", func(t *testing.T) {
 		var reader mockReader
 
 		candidateKey := "default." + crd.Name + "-0.v1.cosmos.bharvest"
-		crd.Status.SelfHealing.CosmosPruningStatus.Candidates[candidateKey] = cosmosv1.PruningCandidate{PodName: fullnode.GetPrunerPodName(crd.Name + "-0"), Namespace: crd.Namespace}
+		crd.Status.SelfHealing.CosmosPruningStatus.Candidates[candidateKey] = cosmosv1.SelfHealingCandidate{PodName: fullnode.GetPrunerPodName(crd.Name + "-0"), Namespace: crd.Namespace}
 
 		reader.Lister = func(_ context.Context, list client.ObjectList, opts ...client.ListOption) error {
 			list.(*corev1.PodList).Items = []corev1.Pod{

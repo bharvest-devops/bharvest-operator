@@ -18,7 +18,7 @@ func BuildPods(crd *cosmosv1.CosmosFullNode, cksums ConfigChecksums) ([]diff.Res
 		overrides = crd.Spec.InstanceOverrides
 		pods      []diff.Resource[*corev1.Pod]
 	)
-	candidates := podCandidates(crd)
+	candidates := podSnapshotCandidates(crd)
 	for i := int32(0); i < crd.Spec.Replicas; i++ {
 		pod, err := builder.WithOrdinal(i).Build()
 		if err != nil {
@@ -27,9 +27,25 @@ func BuildPods(crd *cosmosv1.CosmosFullNode, cksums ConfigChecksums) ([]diff.Res
 		if _, shouldSnapshot := candidates[pod.Name]; shouldSnapshot {
 			continue
 		}
+
+		// If current pod's pvc should be pruned, it'll automatically change current pod into pruningPod.
 		if prunerPod := podPruner(crd, pod).BuildPruningContainer(crd); prunerPod != nil {
 			pods = append(pods, diff.Adapt(prunerPod, i))
 			continue
+		}
+
+		// Check if current pod's pvc should be re-generate, and it's true, current pod will be temporary deleted.
+		if crd.Status.SelfHealing.RegenPVCStatus != nil {
+			var isRegenerated bool
+			for _, c := range crd.Status.SelfHealing.RegenPVCStatus.Candidates {
+				if c.PodName == pod.Name && c.Namespace == pod.Namespace {
+					isRegenerated = true
+					break
+				}
+			}
+			if isRegenerated {
+				continue
+			}
 		}
 
 		if len(crd.Spec.ChainSpec.Versions) > 0 {
@@ -89,7 +105,7 @@ func setChainContainerImage(pod *corev1.Pod, image string) {
 	}
 }
 
-func podCandidates(crd *cosmosv1.CosmosFullNode) map[string]struct{} {
+func podSnapshotCandidates(crd *cosmosv1.CosmosFullNode) map[string]struct{} {
 	candidates := make(map[string]struct{})
 	for _, v := range crd.Status.ScheduledSnapshotStatus {
 		candidates[v.PodCandidate] = struct{}{}

@@ -70,6 +70,9 @@ func (control PVCControl) Reconcile(ctx context.Context, reporter kube.Reporter,
 				dataSources[i] = ds
 			}
 		}
+		//} else if If re-gen pvc specified? {
+		// If re-gen pvc specified, it should set AutoDataSource and pass it to pvc builder.go
+		// And also set current PVC name as regen-{current-pvc}
 	}
 
 	var (
@@ -97,6 +100,9 @@ func (control PVCControl) Reconcile(ctx context.Context, reporter kube.Reporter,
 	var deletes int
 	if !control.shouldRetain(crd) {
 		for _, pvc := range diffed.Deletes() {
+			// Check if this deletion targets replaced PVC by Re-gen PVC logic.
+			// TODO()
+
 			reporter.Info("Deleting pvc", "name", pvc.Name)
 			if err := control.client.Delete(ctx, pvc, client.PropagationPolicy(metav1.DeletePropagationForeground)); client.IgnoreNotFound(err) != nil {
 				return true, kube.TransientError(fmt.Errorf("delete pvc %q: %w", pvc.Name, err))

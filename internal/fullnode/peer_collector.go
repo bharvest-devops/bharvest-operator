@@ -3,6 +3,7 @@ package fullnode
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net"
 	"sort"
@@ -218,7 +219,7 @@ func (c PeerCollector) addExternalAddress(ctx context.Context, peers Peers, crd 
 				info.ExternalAddress = peer[strings.Index(peer, "@")+1:]
 				return nil
 			} else {
-				podNodeAddress = "0.0.0.0"
+				return errors.New("cannot retreive node IP")
 			}
 		}
 

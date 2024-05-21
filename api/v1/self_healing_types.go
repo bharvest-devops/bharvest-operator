@@ -149,9 +149,11 @@ type DBBackend string
 type CosmosPruningStatus struct {
 
 	// Candidates describes what pod is currently pruning.
+	// +mapType:=granular
 	// +optional
-	Candidates map[string]PruningCandidate `json:"candidate"`
+	Candidates map[string]SelfHealingCandidate `json:"candidate"`
 
+	// +mapType:=granular
 	// +optional
 	PodPruningStatus map[string]PodPruningStatus `json:"podPruningStatus"`
 
@@ -159,7 +161,7 @@ type CosmosPruningStatus struct {
 	CosmosPruningPhase CosmosPruningPhase `json:"cosmosPruningPhase"`
 }
 
-type PruningCandidate struct {
+type SelfHealingCandidate struct {
 	PodName   string `json:"podName"`
 	Namespace string `json:"namespace"`
 }
@@ -196,9 +198,8 @@ type SelfHealingStatus struct {
 	PVCAutoScale map[string]*PVCAutoScaleStatus `json:"pvcAutoScaler"`
 
 	// Re-generating PVC status.
-	// +mapType:=granular
 	// +optional
-	RegenPVCStatus map[string]*RegenPVCStatus `json:"regenPVCStatus"`
+	RegenPVCStatus *RegenPVCStatus `json:"regenPVCStatus"`
 
 	// CosmosPruning status.
 	// +optional
@@ -206,10 +207,19 @@ type SelfHealingStatus struct {
 }
 
 type RegenPVCStatus struct {
-	FailureTimes []string `json:"podStartingFailureTimes"`
+
+	// Candidates describes what pod is currently re-generating.
+	// +mapType:=granular
+	// +optional
+	Candidates map[string]SelfHealingCandidate `json:"candidate"`
+
+	// How many times failed in specified interval.
+	// +mapType:=granular
+	// +optional
+	FailureTimes map[string][]string `json:"podStartingFailureTimes"`
 
 	// The phase of the controller.
-	Phase *RegenPVCPhase `json:"phase"`
+	RegenPVCPhase RegenPVCPhase `json:"phase"`
 }
 
 type RegenPVCPhase string
