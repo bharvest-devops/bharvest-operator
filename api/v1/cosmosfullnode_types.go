@@ -208,7 +208,7 @@ type PodSpec struct {
 	Metadata Metadata `json:"metadata"`
 
 	// TerminationPolicy describes how manage k8s pods after stopped.
-	// If you don't configure, it defaults to "Remain"
+	// If you don't configure, it defaults to "Remove"
 	// +optional
 	TerminationPolicy TerminationPolicy `json:"terminationPolicy"`
 
