@@ -101,6 +101,14 @@ func (r *SelfHealingReconciler) regeneratePVC(ctx context.Context, reporter kube
 	name := fullnode.PVCName(pod)
 	key := client.ObjectKey{Namespace: pod.Namespace, Name: name}
 	if err := r.Client.Get(ctx, key, pvc); err != nil {
+		if crd.Status.SelfHealing.RegenPVCStatus != nil && crd.Status.SelfHealing.RegenPVCStatus.Candidates != nil {
+			for sourceKey, candiate := range crd.Status.SelfHealing.RegenPVCStatus.Candidates {
+				if candiate.PodName == pod.Name {
+					delete(crd.Status.SelfHealing.RegenPVCStatus.Candidates, sourceKey)
+				}
+			}
+		}
+
 		reporter.Info("PVC not exists ", pod.Name)
 		reporter.RecordError("PVCRegenerating", err)
 		return

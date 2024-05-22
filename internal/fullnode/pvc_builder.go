@@ -43,6 +43,13 @@ func BuildPVCs(
 		if pvcDisabled(crd, i) {
 			continue
 		}
+		if crd.Status.SelfHealing.RegenPVCStatus != nil && crd.Status.SelfHealing.RegenPVCStatus.Candidates != nil {
+			for _, c := range crd.Status.SelfHealing.RegenPVCStatus.Candidates {
+				if c.PodName == instanceName(crd, i) {
+					continue
+				}
+			}
+		}
 
 		pvc := base.DeepCopy()
 		name := pvcName(crd, i)
