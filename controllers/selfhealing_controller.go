@@ -43,6 +43,7 @@ type SelfHealingReconciler struct {
 	driftDetector   fullnode.DriftDetection
 	pvcHealer       *fullnode.PVCHealer
 	recorder        record.EventRecorder
+	statusClient    *fullnode.StatusClient
 }
 
 func NewSelfHealing(
@@ -59,6 +60,7 @@ func NewSelfHealing(
 		driftDetector:   fullnode.NewDriftDetection(cacheController),
 		pvcHealer:       fullnode.NewPVCHealer(statusClient),
 		recorder:        recorder,
+		statusClient:    statusClient,
 	}
 }
 
@@ -84,6 +86,7 @@ func (r *SelfHealingReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 
 	reporter := kube.NewEventReporter(logger, r.recorder, crd)
 
+	r.checkRegeneratedPVC(ctx, reporter, crd)
 	r.pvcAutoScale(ctx, reporter, crd)
 	r.mitigateHeightDrift(ctx, reporter, crd)
 
@@ -92,28 +95,6 @@ func (r *SelfHealingReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 
 func (r *SelfHealingReconciler) regeneratePVC(ctx context.Context, reporter kube.Reporter, crd *cosmosv1.CosmosFullNode, pod *corev1.Pod) {
 	if crd.Spec.SelfHeal.HeightDriftMitigation.RegeneratePVC == nil {
-		return
-	}
-
-	pvc := new(corev1.PersistentVolumeClaim)
-
-	// Find matching PVC to capture its actual capacity
-	name := fullnode.PVCName(pod)
-	key := client.ObjectKey{Namespace: pod.Namespace, Name: name}
-	if err := r.Client.Get(ctx, key, pvc); err != nil {
-		if crd.Status.SelfHealing.RegenPVCStatus != nil && crd.Status.SelfHealing.RegenPVCStatus.Candidates != nil {
-			for sourceKey, candiate := range crd.Status.SelfHealing.RegenPVCStatus.Candidates {
-				if candiate.PodName == pod.Name {
-					delete(crd.Status.SelfHealing.RegenPVCStatus.Candidates, sourceKey)
-				}
-			}
-		}
-
-		reporter.Info("PVC not exists ", pod.Name)
-		reporter.RecordError("PVCRegenerating", err)
-		return
-	}
-	if pvc.Status.Phase != corev1.ClaimBound {
 		return
 	}
 
@@ -130,6 +111,38 @@ func (r *SelfHealingReconciler) regeneratePVC(ctx context.Context, reporter kube
 	}
 
 	return
+}
+
+func (r *SelfHealingReconciler) checkRegeneratedPVC(ctx context.Context, reporter kube.Reporter, crd *cosmosv1.CosmosFullNode) {
+	pods := r.cacheController.Collect(ctx, client.ObjectKeyFromObject(crd))
+
+	for _, pod := range pods {
+		pvc := new(corev1.PersistentVolumeClaim)
+
+		// Find matching PVC to capture its actual capacity
+		name := fullnode.PVCName(pod.Pod)
+		key := client.ObjectKey{Namespace: pod.Pod.Namespace, Name: name}
+		if err := r.Client.Get(ctx, key, pvc); err != nil {
+			if crd.Status.SelfHealing.RegenPVCStatus != nil && crd.Status.SelfHealing.RegenPVCStatus.Candidates != nil {
+				for sourceKey, candiate := range crd.Status.SelfHealing.RegenPVCStatus.Candidates {
+					if candiate.PodName == pod.Pod.Name {
+						err = r.statusClient.SyncUpdate(ctx, client.ObjectKeyFromObject(crd), func(status *cosmosv1.FullNodeStatus) {
+							delete(status.SelfHealing.RegenPVCStatus.Candidates, sourceKey)
+						})
+
+						return
+					}
+				}
+			}
+
+			reporter.Info("PVC not exists ", pod.Pod.Name)
+			reporter.RecordError("PVCRegenerating", err)
+			return
+		}
+		if pvc.Status.Phase != corev1.ClaimBound {
+			return
+		}
+	}
 }
 
 func (r *SelfHealingReconciler) pvcAutoScale(ctx context.Context, reporter kube.Reporter, crd *cosmosv1.CosmosFullNode) {
