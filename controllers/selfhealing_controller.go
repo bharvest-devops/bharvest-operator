@@ -114,34 +114,32 @@ func (r *SelfHealingReconciler) regeneratePVC(ctx context.Context, reporter kube
 }
 
 func (r *SelfHealingReconciler) checkRegeneratedPVC(ctx context.Context, reporter kube.Reporter, crd *cosmosv1.CosmosFullNode) {
-	pods := r.cacheController.Collect(ctx, client.ObjectKeyFromObject(crd))
+	var podName string
+	if crd.Status.SelfHealing.RegenPVCStatus != nil && crd.Status.SelfHealing.RegenPVCStatus.Candidates != nil {
+		for _, c := range crd.Status.SelfHealing.RegenPVCStatus.Candidates {
+			podName = c.PodName
+			break
+		}
+	}
+	pvc := new(corev1.PersistentVolumeClaim)
 
-	for _, pod := range pods {
-		pvc := new(corev1.PersistentVolumeClaim)
+	// Find matching PVC to capture its actual capacity
+	name := fmt.Sprintf("pvc-%s", podName)
+	key := client.ObjectKey{Namespace: crd.Namespace, Name: name}
+	if err := r.Client.Get(ctx, key, pvc); err != nil || pvc == nil {
+		if crd.Status.SelfHealing.RegenPVCStatus != nil && crd.Status.SelfHealing.RegenPVCStatus.Candidates != nil {
+			for sourceKey, candiate := range crd.Status.SelfHealing.RegenPVCStatus.Candidates {
+				if candiate.PodName == podName {
+					reporter.Info("successfully removed pvc. not re-generating...")
+					err = r.statusClient.SyncUpdate(ctx, client.ObjectKeyFromObject(crd), func(status *cosmosv1.FullNodeStatus) {
+						delete(status.SelfHealing.RegenPVCStatus.Candidates, sourceKey)
+					})
 
-		// Find matching PVC to capture its actual capacity
-		name := fullnode.PVCName(pod.Pod)
-		key := client.ObjectKey{Namespace: pod.Pod.Namespace, Name: name}
-		if err := r.Client.Get(ctx, key, pvc); err != nil {
-			if crd.Status.SelfHealing.RegenPVCStatus != nil && crd.Status.SelfHealing.RegenPVCStatus.Candidates != nil {
-				for sourceKey, candiate := range crd.Status.SelfHealing.RegenPVCStatus.Candidates {
-					if candiate.PodName == pod.Pod.Name {
-						err = r.statusClient.SyncUpdate(ctx, client.ObjectKeyFromObject(crd), func(status *cosmosv1.FullNodeStatus) {
-							delete(status.SelfHealing.RegenPVCStatus.Candidates, sourceKey)
-						})
-
-						return
-					}
+					return
 				}
 			}
-
-			reporter.Info("PVC not exists ", pod.Pod.Name)
-			reporter.RecordError("PVCRegenerating", err)
-			return
 		}
-		if pvc.Status.Phase != corev1.ClaimBound {
-			return
-		}
+		return
 	}
 }
 
