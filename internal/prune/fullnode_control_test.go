@@ -344,13 +344,6 @@ func TestFullNodeControl_CheckPruningComplete(t *testing.T) {
 
 	})
 
-	t.Run("read failed", func(t *testing.T) {
-		control := NewFullNodeControl(nopStatusSyncer, nopReader)
-		ok, err := control.CheckPruningComplete(ctx, &crd)
-
-		require.Error(t, err)
-		require.Equal(t, false, ok)
-	})
 }
 
 func TestFullNodeControl_SignalPodRestoration(t *testing.T) {

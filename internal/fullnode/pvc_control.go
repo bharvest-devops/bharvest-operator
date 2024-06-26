@@ -70,9 +70,6 @@ func (control PVCControl) Reconcile(ctx context.Context, reporter kube.Reporter,
 				dataSources[i] = ds
 			}
 		}
-		//} else if If re-gen pvc specified? {
-		// If re-gen pvc specified, it should set AutoDataSource and pass it to pvc builder.go
-		// And also set current PVC name as regen-{current-pvc}
 	}
 
 	var (

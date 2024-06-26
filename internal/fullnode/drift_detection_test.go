@@ -99,4 +99,25 @@ func TestDriftDetection_LaggingPods(t *testing.T) {
 		got = detector.LaggingPods(context.Background(), &crd)
 		require.Empty(t, got)
 	})
+	//
+	//t.Run("heightRetentionThreshold exceeded", func(t *testing.T) {
+	//	collector := mockStatusCollector{CollectFn: func(ctx context.Context, controller client.ObjectKey) cosmos.StatusCollection {
+	//		return nil
+	//	}}
+	//	detector := NewDriftDetection(collector)
+	//
+	//	var crd cosmosv1.CosmosFullNode
+	//	crd.Spec.SelfHeal = &cosmosv1.SelfHealSpec{}
+	//	crd.Spec.SelfHeal.HeightDriftMitigation = &cosmosv1.HeightDriftMitigationSpec{
+	//		ThresholdHeight:        25,
+	//		MaxHeightRetentionTime: metav1.Duration{Duration: time.Dur},
+	//	}
+	//
+	//	got := detector.LaggingPods(context.Background(), &crd)
+	//	require.Empty(t, got)
+	//
+	//	crd.Spec.Replicas = 3
+	//	got = detector.LaggingPods(context.Background(), &crd)
+	//	require.Empty(t, got)
+	//})
 }

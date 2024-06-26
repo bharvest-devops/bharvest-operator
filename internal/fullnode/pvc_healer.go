@@ -152,6 +152,12 @@ func (healer PVCHealer) UpdatePodFailure(ctx context.Context, crd *cosmosv1.Cosm
 		})
 		crd.Status.SelfHealing.RegenPVCStatus = regenPVCStatus
 	}
+	if regenPVCStatus.FailureTimes == nil {
+		regenPVCStatus.FailureTimes = make(map[string][]string)
+	}
+	if regenPVCStatus.Candidates == nil {
+		regenPVCStatus.Candidates = make(map[string]cosmosv1.SelfHealingCandidate)
+	}
 
 	current, _ := regenPVCStatus.FailureTimes[sourceKey(podName, crd.Namespace)]
 

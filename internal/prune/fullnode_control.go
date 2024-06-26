@@ -110,6 +110,7 @@ func (control FullNodeControl) CheckPruningComplete(ctx context.Context, crd *co
 		return false, fmt.Errorf("list pods: %w", err)
 	}
 
+	var existsPod bool
 	for _, pruningCandidate := range pruningStatus.Candidates {
 		for _, p := range pods.Items {
 			if p.Name == fullnode.GetPrunerPodName(pruningCandidate.PodName) {
@@ -122,7 +123,16 @@ func (control FullNodeControl) CheckPruningComplete(ctx context.Context, crd *co
 				}
 				existsCandidate = true
 			}
+			if strings.Contains(p.Name, pruningCandidate.PodName) {
+				existsPod = true
+			}
 		}
+	}
+
+	if !existsPod {
+		return true, control.statusClient.SyncUpdate(ctx, client.ObjectKeyFromObject(crd), func(status *cosmosv1.FullNodeStatus) {
+			status.SelfHealing.CosmosPruningStatus.CosmosPruningPhase = cosmosv1.CosmosPruningPhaseRestorePod
+		})
 	}
 
 	if !existsCandidate {

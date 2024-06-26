@@ -138,6 +138,29 @@ func TestBuildPVCs(t *testing.T) {
 		require.Equal(t, "override", *got1.Spec.StorageClassName)
 	})
 
+	t.Run("regen pvc", func(t *testing.T) {
+		crd := defaultCRD()
+		crd.Name = "cosmoshub"
+		crd.Spec.Replicas = 2
+		crd.Status.SelfHealing = cosmosv1.SelfHealingStatus{
+			RegenPVCStatus: ptr(cosmosv1.RegenPVCStatus{
+				Candidates: map[string]cosmosv1.SelfHealingCandidate{
+					"default.cosmoshub-0.v1.cosmos.bharvest": {
+						PodName:   "cosmoshub-0",
+						Namespace: "default",
+					},
+				},
+			}),
+		}
+
+		pvcs := BuildPVCs(&crd, map[int32]*dataSource{}, nil)
+		require.Equal(t, 1, len(pvcs))
+
+		got1 := pvcs[0].Object()
+
+		require.Equal(t, "pvc-cosmoshub-1", got1.Name)
+	})
+
 	t.Run("long names", func(t *testing.T) {
 		crd := defaultCRD()
 		crd.Spec.Replicas = 3
