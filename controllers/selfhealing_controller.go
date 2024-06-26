@@ -132,6 +132,7 @@ func (r *SelfHealingReconciler) checkRegeneratedPVC(ctx context.Context, reporte
 				if candiate.PodName == podName {
 					reporter.Info("successfully removed pvc. not re-generating...")
 					err = r.statusClient.SyncUpdate(ctx, client.ObjectKeyFromObject(crd), func(status *cosmosv1.FullNodeStatus) {
+						status.SelfHealing.RegenPVCStatus.RegenPVCPhase = cosmosv1.RegenPVCPhaseNotYet
 						delete(status.SelfHealing.RegenPVCStatus.Candidates, sourceKey)
 					})
 
