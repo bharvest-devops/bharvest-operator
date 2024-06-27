@@ -23,48 +23,31 @@ const maxP2PServiceDefault = int32(1)
 // interpreted as byzantine behavior if the peer previously connected to a pod that was in sync through the same
 // external address.
 func BuildServices(crd *cosmosv1.CosmosFullNode) []diff.Resource[*corev1.Service] {
-	p2ps := make([]diff.Resource[*corev1.Service], crd.Spec.Replicas)
+	svcs := make([]diff.Resource[*corev1.Service], crd.Spec.Replicas)
 
 	for i := int32(0); i < crd.Spec.Replicas; i++ {
 		ordinal := i
-		var svc corev1.Service
-		svc.Name = p2pServiceName(crd, ordinal)
-		svc.Namespace = crd.Namespace
-		svc.Kind = "Service"
-		svc.APIVersion = "v1"
-
-		svc.Labels = defaultLabels(crd,
-			kube.InstanceLabel, instanceName(crd, ordinal),
-			kube.ComponentLabel, "p2p",
-		)
-		svc.Annotations = map[string]string{}
-		svc.Spec.Selector = map[string]string{kube.InstanceLabel: instanceName(crd, ordinal)}
+		svc, componentName := new(corev1.Service), "p2p"
 
 		p2pServiceSpec := findP2PServiceSpec(crd, i)
 
 		if p2pServiceSpec != nil {
-			preserveMergeInto(svc.Labels, p2pServiceSpec.Metadata.Labels)
-			preserveMergeInto(svc.Annotations, p2pServiceSpec.Metadata.Annotations)
-			svc.Spec.Type = *valOrDefault(p2pServiceSpec.Type, ptr(corev1.ServiceTypeLoadBalancer))
-
-			// To set svc.Spec.ExternalTrafficPolicy, you should set type as NodePort, or LoadBalancer
-			if svc.Spec.Type == corev1.ServiceTypeLoadBalancer || svc.Spec.Type == corev1.ServiceTypeNodePort {
-				svc.Spec.ExternalTrafficPolicy = *valOrDefault(p2pServiceSpec.ExternalTrafficPolicy, ptr(corev1.ServiceExternalTrafficPolicyTypeLocal))
-			}
+			svc = podService(crd, ordinal,
+				componentName,
+				p2pServiceSpec.Metadata.Labels,
+				p2pServiceSpec.Metadata.Annotations,
+				*valOrDefault(p2pServiceSpec.Type, ptr(corev1.ServiceTypeLoadBalancer)),
+				valOrDefault(p2pServiceSpec.ExternalTrafficPolicy, ptr(corev1.ServiceExternalTrafficPolicyTypeLocal)))
 		} else {
-			svc.Spec.Type = corev1.ServiceTypeClusterIP
+			svc = podService(crd, ordinal, componentName, map[string]string{}, map[string]string{}, corev1.ServiceTypeClusterIP, nil)
 		}
-
-		var (
-			portNameP2P = "p2p"
-		)
 
 		servicePortList := []corev1.ServicePort{
 			{
-				Name:       portNameP2P,
+				Name:       componentName,
 				Protocol:   corev1.ProtocolTCP,
 				Port:       p2pPort,
-				TargetPort: intstr.FromString(portNameP2P),
+				TargetPort: intstr.FromString(componentName),
 			},
 		}
 
@@ -84,12 +67,65 @@ func BuildServices(crd *cosmosv1.CosmosFullNode) []diff.Resource[*corev1.Service
 
 		svc.Spec.Ports = servicePortList
 
-		p2ps[i] = diff.Adapt(&svc, i)
+		svcs[i] = diff.Adapt(svc, i)
 	}
 
 	rpc := rpcService(crd)
 
-	return append(p2ps, diff.Adapt(rpc, len(p2ps)))
+	if crd.Spec.Type == cosmosv1.Sentry {
+		for i := int32(0); i < crd.Spec.Replicas; i++ {
+			ordinal := i
+			svc, componentName := new(corev1.Service), "cosmos-sentry"
+
+			svc = podService(crd, ordinal,
+				componentName,
+				map[string]string{},
+				map[string]string{},
+				corev1.ServiceTypeClusterIP,
+				nil)
+
+			servicePortList := []corev1.ServicePort{
+				{
+					Name:       componentName,
+					Protocol:   corev1.ProtocolTCP,
+					Port:       privvalPort,
+					TargetPort: intstr.FromString(componentName),
+				},
+			}
+
+			svc.Spec.Ports = servicePortList
+
+			svcs[i] = diff.Adapt(svc, i)
+		}
+	}
+
+	return append(svcs, diff.Adapt(rpc, len(svcs)))
+}
+
+func podService(crd *cosmosv1.CosmosFullNode, ordinal int32, componentName string, labels, annotations map[string]string, serviceType corev1.ServiceType, externalTrafficPolicy *corev1.ServiceExternalTrafficPolicyType) *corev1.Service {
+	svc := new(corev1.Service)
+	svc.Name = podServiceName(crd, componentName, ordinal)
+	svc.Namespace = crd.Namespace
+	svc.Kind = "Service"
+	svc.APIVersion = "v1"
+
+	svc.Labels = defaultLabels(crd,
+		kube.InstanceLabel, instanceName(crd, ordinal),
+		kube.ComponentLabel, componentName,
+	)
+	svc.Annotations = map[string]string{}
+	svc.Spec.Selector = map[string]string{kube.InstanceLabel: instanceName(crd, ordinal)}
+
+	preserveMergeInto(svc.Labels, labels)
+	preserveMergeInto(svc.Annotations, annotations)
+
+	svc.Spec.Type = serviceType
+	// To set svc.Spec.ExternalTrafficPolicy, you should set type as NodePort, or LoadBalancer
+	if svc.Spec.Type == corev1.ServiceTypeLoadBalancer || svc.Spec.Type == corev1.ServiceTypeNodePort {
+		svc.Spec.ExternalTrafficPolicy = *valOrDefault(externalTrafficPolicy, ptr(corev1.ServiceExternalTrafficPolicyTypeLocal))
+	}
+
+	return svc
 }
 
 func rpcService(crd *cosmosv1.CosmosFullNode) *corev1.Service {
@@ -180,8 +216,8 @@ func rpcService(crd *cosmosv1.CosmosFullNode) *corev1.Service {
 	return &svc
 }
 
-func p2pServiceName(crd *cosmosv1.CosmosFullNode, ordinal int32) string {
-	return fmt.Sprintf("%s-p2p-%d", appName(crd), ordinal)
+func podServiceName(crd *cosmosv1.CosmosFullNode, componentName string, ordinal int32) string {
+	return fmt.Sprintf("%s-%s-%d", appName(crd), componentName, ordinal)
 }
 
 func rpcServiceName(crd *cosmosv1.CosmosFullNode) string {

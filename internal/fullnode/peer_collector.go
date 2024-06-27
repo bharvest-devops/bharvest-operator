@@ -120,7 +120,7 @@ func (c PeerCollector) Collect(ctx context.Context, crd *cosmosv1.CosmosFullNode
 		if err := json.Unmarshal(secret.Data[nodeKeyFile], &nodeKey); err != nil {
 			return nil, kube.UnrecoverableError(err)
 		}
-		svcName := p2pServiceName(crd, i)
+		svcName := podServiceName(crd, "p2p", i)
 		peers[c.objectKey(crd, i)] = Peer{
 			NodeID:         nodeKey.ID(),
 			PrivateAddress: fmt.Sprintf("%s.%s:%d", svcName, secret.Namespace, p2pPort),
@@ -138,7 +138,7 @@ func (c PeerCollector) objectKey(crd *cosmosv1.CosmosFullNode, ordinal int32) cl
 }
 
 func (c PeerCollector) addExternalAddress(ctx context.Context, peers Peers, crd *cosmosv1.CosmosFullNode, ordinal int32) error {
-	svcName := p2pServiceName(crd, ordinal)
+	svcName := podServiceName(crd, "p2p", ordinal)
 	var svc corev1.Service
 	// Hoping the caching layer kubebuilder prevents API errors or rate limits. Simplifies logic to use a Get here
 	// vs. manually filtering through a List.
