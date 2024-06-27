@@ -672,7 +672,7 @@ func (p *PrunerPod) BuildPruningContainer(crd *cosmosv1.CosmosFullNode) *corev1.
 		pruningImage = PRUNING_POD_IMAGE_DEFAULT
 	}
 	if pruningCommand == "" {
-		pruningCommand = "cosmos-pruner prune /home/operator/cosmos/data/ -b=0 -v=0 --tx_index=true --compact=true --cosmos-sdk=true 2>&1"
+		pruningCommand = "cosmos-pruner compact /home/operator/cosmos/data/ 2>&1"
 	}
 
 	oldPod := ptr(corev1.Pod(*p)).DeepCopy()
