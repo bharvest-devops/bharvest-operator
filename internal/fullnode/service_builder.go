@@ -86,14 +86,15 @@ func BuildServices(crd *cosmosv1.CosmosFullNode) []diff.Resource[*corev1.Service
 
 			servicePortList := []corev1.ServicePort{
 				{
-					Name:       componentName,
+					Name:       "sentry-privval",
 					Protocol:   corev1.ProtocolTCP,
 					Port:       privvalPort,
-					TargetPort: intstr.FromString(componentName),
+					TargetPort: intstr.FromString("privval"),
 				},
 			}
 
 			svc.Spec.Ports = servicePortList
+			svc.Spec.PublishNotReadyAddresses = true
 
 			svcs[i] = diff.Adapt(svc, i)
 		}
